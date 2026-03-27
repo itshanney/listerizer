@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reading List Export</title>
+  <link rel="stylesheet" href="export.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Reading List Exporter</h1>
+      <p>Here is your Chrome Reading List in JSON format.</p>
+    </header>
+    
+    <div class="actions">
+      <button id="downloadBtn" class="primary-btn">Download JSON</button>
+      <span id="status" class="status-msg"></span>
+    </div>
+
+    <main>
+      <div class="code-wrapper">
+        <pre id="jsonOutput">Loading...</pre>
+      </div>
+    </main>
+  </div>
+  <script src="export.js"></script>
+</body>
+</html>
