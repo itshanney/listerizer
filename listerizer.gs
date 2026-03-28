@@ -10,8 +10,8 @@ function runListerizer() {
   }
 
   // 3. Parse JSON and filter unread items
-  const file = DriveApp.getFileById('1gOan2BsFhw1AGbUiBeU6CDSmq5PywHf7');  
-  const jsonContent = file.getBlob().getDataAsString();
+  const readingListFile = DriveApp.getFileById('10ShYpqeHQgy0RlT4DHubQbKHYe7FFZzE');
+  const jsonContent = readingListFile.getBlob().getDataAsString();
   let readingList = [];
   try {
     readingList = JSON.parse(jsonContent);
@@ -110,6 +110,9 @@ function runListerizer() {
     return;
   }
 
+  // Update the JSON file to mark the item read
+  selectedItem.hasBeenRead = true;
+  readingListFile.setContent(JSON.stringify(readingList, null, 2));
   
   // Send an email with the summary
   const userEmail = Session.getEffectiveUser().getEmail();
