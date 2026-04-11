@@ -17,8 +17,9 @@ Listerizer is a two-part system designed to manage and export a user's Chrome Re
 - **Styling**: Stick to the vanilla CSS approach used in `export.css` for any UI updates to the Chrome Extension unless requested otherwise.
 - **API Payloads**: When modifying the Gemini API prompt in `listerizer.gs`, ensure the output format remains concise and bulleted for "zero-fluff" readings.
 
-## Key Files
-- `manifest.json`: Configuration for the Chrome extension.
-- `background.js`: Service worker for the extension.
-- `export.html` / `export.js` / `export.css`: UI for exporting the reading list.
-- `listerizer.gs`: Google Apps Script logic for summarization and emailing.
+## Project Structure
+All source files live in the `extension/` subdirectory:
+- `extension/manifest.json`: Configuration for the Chrome extension.
+- `extension/background.js`: Service worker for the extension.
+- `extension/export.html` / `extension/export.js` / `extension/export.css`: UI for exporting the reading list.
+- `extension/listerizer.gs`: Google Apps Script logic for summarization and emailing.
