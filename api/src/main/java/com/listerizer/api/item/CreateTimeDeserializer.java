@@ -1,12 +1,11 @@
 package com.listerizer.api.item;
 
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonToken;
-import com.fasterxml.jackson.databind.DeserializationContext;
-import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
-import com.fasterxml.jackson.databind.exc.InvalidFormatException;
+import tools.jackson.core.JsonParser;
+import tools.jackson.core.JsonToken;
+import tools.jackson.databind.DeserializationContext;
+import tools.jackson.databind.deser.std.StdDeserializer;
+import tools.jackson.databind.exc.InvalidFormatException;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
@@ -22,7 +21,7 @@ public class CreateTimeDeserializer extends StdDeserializer<String> {
     }
 
     @Override
-    public String deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
+    public String deserialize(JsonParser p, DeserializationContext ctxt) {
         if (p.currentToken() == JsonToken.VALUE_NUMBER_INT) {
             return deserializeEpochSeconds(p);
         }
@@ -32,12 +31,12 @@ public class CreateTimeDeserializer extends StdDeserializer<String> {
         throw InvalidFormatException.from(
                 p,
                 "create_time must be an ISO 8601 string or Unix epoch seconds integer",
-                p.getCurrentToken(),
+                p.currentToken(),
                 String.class
         );
     }
 
-    private String deserializeEpochSeconds(JsonParser p) throws IOException {
+    private String deserializeEpochSeconds(JsonParser p) {
         long epochSeconds = p.getLongValue();
         if (epochSeconds < 0) {
             throw InvalidFormatException.from(
@@ -50,7 +49,7 @@ public class CreateTimeDeserializer extends StdDeserializer<String> {
         return Instant.ofEpochSecond(epochSeconds).toString();
     }
 
-    private String deserializeIso8601(JsonParser p) throws IOException {
+    private String deserializeIso8601(JsonParser p) {
         String value = p.getText();
         try {
             // OffsetDateTime handles ISO 8601 with timezone offsets; Instant handles the Z suffix.

@@ -1,7 +1,7 @@
 package com.listerizer.api.item;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import tools.jackson.databind.annotation.JsonDeserialize;
 
 public record ItemRequest(
         String url,
