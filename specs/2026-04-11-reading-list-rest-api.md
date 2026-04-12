@@ -9,7 +9,11 @@
 
 ## Overview
 
-This is a single-process, single-user CRUD REST service built with **Java 21** and **Spring Boot 3**, backed by a SQLite database, listening on **port 5080**. It exposes two HTTP endpoints — one to ingest reading list items and one to retrieve them — and is designed to run as a persistent process on a small Linux workstation. No authentication, no external dependencies, no background workers. Spring Boot is used for its embedded Tomcat server, `@RestController` routing, Jackson JSON serialization, and Spring Data JDBC for repository access; no part of the Spring ecosystem beyond these is introduced. The service must tolerate `create_time` in either Unix epoch (seconds) or ISO 8601 format and normalize to Unix epoch (seconds) before storage.
+This is a single-process, single-user CRUD REST service built with **Java 21** and **Spring Boot 3**, backed by a SQLite database, listening on **port 5080**. 
+* It exposes two HTTP endpoints — one to ingest reading list items and one to retrieve them — and is designed to run as a persistent process on a small Linux workstation. 
+* No authentication, no external dependencies, no background workers. 
+* Spring Boot is used for its embedded Tomcat server, `@RestController` routing, Jackson JSON serialization, and Spring Data JDBC for repository access; no part of the Spring ecosystem beyond these is introduced. 
+* The service must tolerate `create_time` in either Unix epoch (seconds) or ISO 8601 format and normalize to Unix epoch (seconds) before storage.
 
 ---
 
