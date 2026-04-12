@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-11
 **Status:** Draft
-**Stack:** Java 21, Spring Boot 3, SQLite, port 5080
+**Stack:** Java 21, Spring Boot 3, Gradle, SQLite, port 5080
 **Source Spec:** [features/2026-04-11-reading-list-rest-api.md](../features/2026-04-11-reading-list-rest-api.md)
 
 ---
@@ -211,10 +211,10 @@ Content-Type: application/json
 | JSON | Jackson (included with Spring Boot) |
 | Data access | Spring Data JDBC + `JdbcTemplate` |
 | SQLite driver | `org.xerial:sqlite-jdbc` |
-| Build tool | Maven or Gradle (implementer's choice; no architectural impact) |
+| Build tool | Gradle |
 
 ### Startup & Deployment
-- Service is packaged as a Spring Boot fat JAR (`mvn package` / `gradle bootJar`) and launched as a systemd unit on the Linux workstation: `java -jar listerizer-api.jar`.
+- Service is packaged as a Spring Boot fat JAR (`gradle bootJar`) and launched as a systemd unit on the Linux workstation: `java -jar build/libs/listerizer-api.jar`.
 - On first start, Spring Boot runs `schema.sql` from the classpath (via `spring.sql.init.mode=always`) to create the table: `CREATE TABLE IF NOT EXISTS items (...)`.
 - Configurable via `application.properties` or environment variable overrides (Spring Boot convention):
   - `server.port=5080` (default; override with `SERVER_PORT` env var)
