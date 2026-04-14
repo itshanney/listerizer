@@ -2,14 +2,14 @@
 
 **Date:** 2026-04-11
 **Status:** Draft
-**Stack:** Java 21, Spring Boot 3, Gradle, SQLite, port 5080
+**Stack:** Java 25, Spring Boot 4, Gradle, SQLite, port 5080
 **Source Spec:** [features/2026-04-11-reading-list-rest-api.md](../features/2026-04-11-reading-list-rest-api.md)
 
 ---
 
 ## Overview
 
-This is a single-process, single-user CRUD REST service built with **Java 21** and **Spring Boot 3**, backed by a SQLite database, listening on **port 5080**. 
+This is a single-process, single-user CRUD REST service built with **Java 25** and **Spring Boot 4**, backed by a SQLite database, listening on **port 5080**. 
 * It exposes two HTTP endpoints — one to ingest reading list items and one to retrieve them — and is designed to run as a persistent process on a small Linux workstation. 
 * No authentication, no external dependencies, no background workers. 
 * Spring Boot is used for its embedded Tomcat server, `@RestController` routing, Jackson JSON serialization, and Spring Data JDBC for repository access; no part of the Spring ecosystem beyond these is introduced. 
@@ -27,7 +27,7 @@ This is a single-process, single-user CRUD REST service built with **Java 21** a
                          │ HTTP/JSON
                          ▼
 ┌───────────────────────────────────────────────────────────┐
-│  Spring Boot 3 Application (Java 21, port 5080)           │
+│  Spring Boot 4 Application (Java 25, port 5080)           │
 │                                                           │
 │  ┌─────────────────────────────────────────────────────┐  │
 │  │  ItemController (@RestController)                   │  │
@@ -198,7 +198,7 @@ Content-Type: application/json
 | **Persistence** | SQLite, Postgres, flat JSON file | SQLite | Single-user, single-host, zero ops overhead. File-based backup trivial. | Not suitable if concurrency or replication ever needed. |
 | **Duplicate URL handling** | 409 Conflict, silent ignore, upsert timestamp | Return existing record (idempotent 200) | Spec says "idempotent and allowed." Returning the existing record gives the client confirmation of the stored state. | Client cannot update `create_time` on a duplicate without a DELETE+POST. Acceptable per spec scope. |
 | **`create_time` normalization** | Store as-received, normalize to ISO 8601, store as Unix int | Normalize to ISO 8601 string at write time | Single canonical format in DB; no conversion logic on read. Spec requires human-readable ISO 8601 in responses. | Epoch integers lose their original format (irreversible), but the spec confirms server owns normalization. |
-| **Language & framework** | Python/Flask, Go/Chi, Java/Spring Boot | Java 21 + Spring Boot 3 | Explicit technology choice by project owner. Spring Boot provides embedded Tomcat, Jackson, and Spring Data JDBC — covering routing, serialization, and data access with no additional glue code. | Spring Boot JARs are large (~20MB); startup time ~2–3s. Neither matters for a long-running workstation service. SQLite is not a first-class Spring Data dialect — requires `sqlite-jdbc` driver and manual `JdbcTemplate` usage rather than full JPA. |
+| **Language & framework** | Python/Flask, Go/Chi, Java/Spring Boot | Java 25 + Spring Boot 4 | Explicit technology choice by project owner. Spring Boot provides embedded Tomcat, Jackson, and Spring Data JDBC — covering routing, serialization, and data access with no additional glue code. | Spring Boot JARs are large (~20MB); startup time ~2–3s. Neither matters for a long-running workstation service. SQLite is not a first-class Spring Data dialect — requires `sqlite-jdbc` driver and manual `JdbcTemplate` usage rather than full JPA. |
 | **Authentication** | API key, OAuth, none | None | Spec explicitly excludes auth in this version. | Service is unauthenticated — must only bind to localhost or a private network interface. |
 | **Process model** | Single process, multi-process, containerized | Single process | Matches deployment target (small Linux workstation). SQLite write concurrency is sufficient for single-user load. | SQLite WAL mode should be enabled to allow concurrent reads during writes. |
 
@@ -209,8 +209,8 @@ Content-Type: application/json
 ### Technology Stack
 | Layer | Technology |
 |---|---|
-| Language | Java 21 |
-| Framework | Spring Boot 3 |
+| Language | Java 25 |
+| Framework | Spring Boot 4 |
 | HTTP server | Embedded Tomcat (included with Spring Boot) |
 | JSON | Jackson (included with Spring Boot) |
 | Data access | Spring Data JDBC + `JdbcTemplate` |

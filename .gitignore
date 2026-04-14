@@ -11,14 +11,14 @@
 # ── Java / Gradle (api/) ─────────────────────────────────────────────────────
 
 # Build output
-api/build/
-api/.gradle/
+build/
+.gradle/
 
 # Gradle wrapper jar (properties file is committed; binary is not)
-api/gradle/wrapper/gradle-wrapper.jar
+gradle/wrapper/gradle-wrapper.jar
 
 # Spring Boot exploded jar
-api/out/
+out/
 
 # ── IDE ──────────────────────────────────────────────────────────────────────
 
