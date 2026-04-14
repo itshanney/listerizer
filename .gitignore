@@ -1,0 +1,44 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# SQLite database files (created at runtime)
+*.db
+*.db-shm
+*.db-wal
+
+# ── Java / Gradle (api/) ─────────────────────────────────────────────────────
+
+# Build output
+build/
+.gradle/
+
+# Gradle wrapper jar (properties file is committed; binary is not)
+gradle/wrapper/gradle-wrapper.jar
+
+# Spring Boot exploded jar
+out/
+
+# ── IDE ──────────────────────────────────────────────────────────────────────
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VS Code
+.vscode/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# ── Chrome Extension ─────────────────────────────────────────────────────────
+
+# Packed extension artifacts
+*.crx
+*.pem
