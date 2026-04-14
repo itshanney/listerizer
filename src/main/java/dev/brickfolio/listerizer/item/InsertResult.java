@@ -1,4 +1,4 @@
-package com.listerizer.api.item;
+package dev.brickfolio.listerizer.item;
 
 /**
  * Carries the result of an INSERT OR IGNORE operation.

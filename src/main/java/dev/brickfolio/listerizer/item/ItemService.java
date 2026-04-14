@@ -1,4 +1,4 @@
-package com.listerizer.api.item;
+package dev.brickfolio.listerizer.item;
 
 import org.springframework.stereotype.Service;
 

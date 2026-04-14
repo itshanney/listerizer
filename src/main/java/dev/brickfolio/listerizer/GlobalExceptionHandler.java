@@ -1,6 +1,6 @@
-package com.listerizer.api;
+package dev.brickfolio.listerizer;
 
-import com.listerizer.api.item.ValidationException;
+import dev.brickfolio.listerizer.item.ValidationException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
