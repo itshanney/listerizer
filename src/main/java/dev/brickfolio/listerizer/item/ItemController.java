@@ -1,17 +1,20 @@
 package dev.brickfolio.listerizer.item;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-@RestController
-@RequestMapping("/items")
+@Component
+@Path("/items")
+@Produces(MediaType.APPLICATION_JSON)
+@Consumes(MediaType.APPLICATION_JSON)
 public class ItemController {
 
     private final ItemService itemService;
@@ -20,14 +23,14 @@ public class ItemController {
         this.itemService = itemService;
     }
 
-    @PostMapping
-    public ResponseEntity<ItemResponse> create(@RequestBody ItemRequest request) {
+    @POST
+    public Response create(ItemRequest request) {
         InsertResult result = itemService.create(request);
-        HttpStatus status = result.isNew() ? HttpStatus.CREATED : HttpStatus.OK;
-        return ResponseEntity.status(status).body(toResponse(result.item()));
+        Response.Status status = result.isNew() ? Response.Status.CREATED : Response.Status.OK;
+        return Response.status(status).entity(toResponse(result.item())).build();
     }
 
-    @GetMapping
+    @GET
     public List<ItemResponse> list() {
         return itemService.list().stream()
                 .map(this::toResponse)
