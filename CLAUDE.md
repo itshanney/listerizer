@@ -49,10 +49,20 @@ gradle test                # run tests
 **Request path:** HTTP → Jersey servlet → `ItemController` (JAX-RS) → `ItemService` → `ItemRepository` (JdbcTemplate) → SQLite
 
 - `JerseyConfig` — registers all JAX-RS resources and exception mappers with Jersey's `ResourceConfig`.
-- `ItemController` — `POST /items` (upsert) and `GET /items` (list). Returns `201 Created` for new URLs, `200 OK` for duplicates.
-- `ItemService` — validates the URL, delegates to the repository.
-- `ItemRepository` — uses `INSERT OR IGNORE` so duplicate URLs are a no-op; returns the existing row on conflict.
+- `ItemController` (`api`) — `POST /items` (upsert) and `GET /items` (list). Returns `201 Created` for new URLs, `200 OK` for duplicates.
+- `ItemService` (`service`) — validates the URL, delegates to the repository.
+- `ItemRepository` (`repository`) — uses `INSERT OR IGNORE` so duplicate URLs are a no-op; returns the existing row on conflict.
 - `schema.sql` runs on every startup via `spring.sql.init.mode=always`; the `CREATE TABLE IF NOT EXISTS` is idempotent.
+
+**Package structure:**
+
+| Package | Contents |
+|---|---|
+| `dev.brickfolio.listerizer` | `JerseyConfig`, `ItemRequestModule`, `ValidationExceptionMapper`, `JacksonExceptionMapper`, `ErrorResponse`, `LiszterizerApiApplication` |
+| `dev.brickfolio.listerizer.api` | `ItemController`, `ItemRequest`, `ItemResponse`, `CreateTimeDeserializer` |
+| `dev.brickfolio.listerizer.service` | `ItemService`, `InsertResult`, `ValidationException` |
+| `dev.brickfolio.listerizer.repository` | `ItemRepository` |
+| `dev.brickfolio.listerizer.domain` | `Item` |
 
 **Database:** SQLite, configured via `spring.datasource.url`. Override the path with the `LISTERIZER_DB_PATH` environment variable (defaults to `~/listerizer.db`). Pool size is forced to 1 (SQLite single-writer limit); WAL mode is enabled for concurrent reads.
 

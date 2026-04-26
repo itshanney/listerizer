@@ -12,7 +12,7 @@
 This is a single-process, single-user CRUD REST service built with **Java 25** and **Spring Boot 4**, backed by a SQLite database, listening on **port 5080**. 
 * It exposes two HTTP endpoints — one to ingest reading list items and one to retrieve them — and is designed to run as a persistent process on a small Linux workstation. 
 * No authentication, no external dependencies, no background workers. 
-* Spring Boot is used for its embedded Tomcat server, `@RestController` routing, Jackson JSON serialization, and Spring Data JDBC for repository access; no part of the Spring ecosystem beyond these is introduced. 
+* Spring Boot is used for its embedded Tomcat server, Jersey for JAX-RS routing, Jackson JSON serialization, and `JdbcTemplate` for repository access; no part of the Spring ecosystem beyond these is introduced. 
 * The service must tolerate `create_time` in either Unix epoch (seconds) or ISO 8601 format and normalize to Unix epoch (seconds) before storage.
 
 ---
@@ -30,21 +30,21 @@ This is a single-process, single-user CRUD REST service built with **Java 25** a
 │  Spring Boot 4 Application (Java 25, port 5080)           │
 │                                                           │
 │  ┌─────────────────────────────────────────────────────┐  │
-│  │  ItemController (@RestController)                   │  │
+│  │  ItemController (JAX-RS, package: api)              │  │
 │  │  POST /items → ItemController.create                │  │
 │  │  GET  /items → ItemController.list                  │  │
 │  └──────────────────────┬──────────────────────────────┘  │
 │                         │                                 │
 │  ┌──────────────────────▼──────────────────────────────┐  │
-│  │  ItemService (@Service)                             │  │
+│  │  ItemService (package: service)                     │  │
 │  │  - Validates and normalizes input                   │  │
 │  │  - Enforces idempotency on duplicate URLs           │  │
 │  │  - Converts create_time to ISO 8601                 │  │
 │  └──────────────────────┬──────────────────────────────┘  │
 │                         │                                 │
 │  ┌──────────────────────▼──────────────────────────────┐  │
-│  │  ItemRepository (Spring Data JDBC)                  │  │
-│  │  - Owns all SQL via JdbcTemplate or CrudRepository  │  │
+│  │  ItemRepository (JdbcTemplate, package: repository) │  │
+│  │  - Owns all SQL via JdbcTemplate                    │  │
 │  │  - SQLite dialect; single file on local disk        │  │
 │  └──────────────────────┬──────────────────────────────┘  │
 └────────────────────────┬──────────────────────────────────┘
@@ -60,11 +60,23 @@ This is a single-process, single-user CRUD REST service built with **Java 25** a
 
 | Component | Responsibility |
 |---|---|
-| Embedded Tomcat (Spring Boot) | Accepts HTTP connections on port 5080; routes to `@RestController` |
-| `ItemController` | Parses HTTP request via Jackson, calls `ItemService`, serializes HTTP response |
-| `ItemService` | Validates input, normalizes `create_time`, enforces business rules |
-| `ItemRepository` | Executes SQL against SQLite via Spring Data JDBC; no business logic |
+| Embedded Tomcat (Spring Boot) | Accepts HTTP connections on port 5080; routes to Jersey servlet |
+| `ItemController` (`api`) | Parses HTTP request via Jackson, calls `ItemService`, serializes HTTP response |
+| `ItemService` (`service`) | Validates input, normalizes `create_time`, enforces business rules |
+| `ItemRepository` (`repository`) | Executes SQL against SQLite via `JdbcTemplate`; no business logic |
 | SQLite file | Single source of truth for all reading list items |
+
+---
+
+## Package Structure
+
+| Package | Key Classes |
+|---|---|
+| `dev.brickfolio.listerizer` | `JerseyConfig`, `ItemRequestModule`, `ValidationExceptionMapper`, `JacksonExceptionMapper`, `ErrorResponse` |
+| `dev.brickfolio.listerizer.api` | `ItemController`, `ItemRequest`, `ItemResponse`, `CreateTimeDeserializer` |
+| `dev.brickfolio.listerizer.service` | `ItemService`, `InsertResult`, `ValidationException` |
+| `dev.brickfolio.listerizer.repository` | `ItemRepository` |
+| `dev.brickfolio.listerizer.domain` | `Item` |
 
 ---
 
@@ -186,8 +198,8 @@ Content-Type: application/json
 1. Client POSTs `{"url": "https://example.com", "create_time": "not-a-date"}`.
 2. Steps 1–5 pass.
 3. At step 6, service cannot parse `"not-a-date"` as ISO 8601 or integer; throws `ValidationException`.
-4. `@ExceptionHandler` in `ItemController` (or a `@ControllerAdvice`) catches `ValidationException`.
-5. Controller returns `400 Bad Request` with `{"error": "invalid_request", "message": "create_time must be ISO 8601 or Unix epoch seconds"}`.
+4. `ValidationExceptionMapper` (JAX-RS `ExceptionMapper`) catches `ValidationException`.
+5. Mapper returns `400 Bad Request` with `{"error": "invalid_request", "message": "create_time must be ISO 8601 or Unix epoch seconds"}`.
 
 ---
 
@@ -213,7 +225,7 @@ Content-Type: application/json
 | Framework | Spring Boot 4 |
 | HTTP server | Embedded Tomcat (included with Spring Boot) |
 | JSON | Jackson (included with Spring Boot) |
-| Data access | Spring Data JDBC + `JdbcTemplate` |
+| Data access | `JdbcTemplate` (Spring JDBC) |
 | SQLite driver | `org.xerial:sqlite-jdbc` |
 | Build tool | Gradle |
 
