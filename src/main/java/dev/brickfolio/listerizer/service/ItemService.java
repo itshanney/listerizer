@@ -1,5 +1,8 @@
-package dev.brickfolio.listerizer.item;
+package dev.brickfolio.listerizer.service;
 
+import dev.brickfolio.listerizer.api.ItemRequest;
+import dev.brickfolio.listerizer.domain.Item;
+import dev.brickfolio.listerizer.repository.ItemRepository;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;

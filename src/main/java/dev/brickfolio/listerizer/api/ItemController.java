@@ -1,5 +1,8 @@
-package dev.brickfolio.listerizer.item;
+package dev.brickfolio.listerizer.api;
 
+import dev.brickfolio.listerizer.domain.Item;
+import dev.brickfolio.listerizer.service.InsertResult;
+import dev.brickfolio.listerizer.service.ItemService;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;

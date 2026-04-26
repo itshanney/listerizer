@@ -1,4 +1,4 @@
-package dev.brickfolio.listerizer.item;
+package dev.brickfolio.listerizer.api;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;

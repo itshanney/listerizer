@@ -1,4 +1,6 @@
-package dev.brickfolio.listerizer.item;
+package dev.brickfolio.listerizer.service;
+
+import dev.brickfolio.listerizer.domain.Item;
 
 /**
  * Carries the result of an INSERT OR IGNORE operation.

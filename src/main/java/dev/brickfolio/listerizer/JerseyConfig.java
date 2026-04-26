@@ -1,8 +1,6 @@
 package dev.brickfolio.listerizer;
 
-import dev.brickfolio.listerizer.item.ItemController;
-import dev.brickfolio.listerizer.item.JacksonExceptionMapper;
-import dev.brickfolio.listerizer.item.ValidationExceptionMapper;
+import dev.brickfolio.listerizer.api.ItemController;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.springframework.stereotype.Component;
 

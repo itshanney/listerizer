@@ -1,5 +1,7 @@
-package dev.brickfolio.listerizer.item;
+package dev.brickfolio.listerizer.repository;
 
+import dev.brickfolio.listerizer.domain.Item;
+import dev.brickfolio.listerizer.service.InsertResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

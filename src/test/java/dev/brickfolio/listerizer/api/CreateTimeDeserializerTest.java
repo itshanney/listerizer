@@ -1,4 +1,4 @@
-package dev.brickfolio.listerizer.item;
+package dev.brickfolio.listerizer.api;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;

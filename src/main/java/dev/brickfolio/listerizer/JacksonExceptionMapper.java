@@ -1,6 +1,5 @@
-package dev.brickfolio.listerizer.item;
+package dev.brickfolio.listerizer;
 
-import dev.brickfolio.listerizer.ErrorResponse;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
