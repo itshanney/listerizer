@@ -1,11 +1,12 @@
 package dev.brickfolio.listerizer.item;
 
-import tools.jackson.core.JsonParser;
-import tools.jackson.core.JsonToken;
-import tools.jackson.databind.DeserializationContext;
-import tools.jackson.databind.deser.std.StdDeserializer;
-import tools.jackson.databind.exc.InvalidFormatException;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
@@ -21,7 +22,7 @@ public class CreateTimeDeserializer extends StdDeserializer<String> {
     }
 
     @Override
-    public String deserialize(JsonParser p, DeserializationContext ctxt) {
+    public String deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {
         if (p.currentToken() == JsonToken.VALUE_NUMBER_INT) {
             return deserializeEpochSeconds(p);
         }
@@ -36,7 +37,7 @@ public class CreateTimeDeserializer extends StdDeserializer<String> {
         );
     }
 
-    private String deserializeEpochSeconds(JsonParser p) {
+    private String deserializeEpochSeconds(JsonParser p) throws IOException {
         long epochSeconds = p.getLongValue();
         if (epochSeconds < 0) {
             throw InvalidFormatException.from(
@@ -44,16 +45,14 @@ public class CreateTimeDeserializer extends StdDeserializer<String> {
                     "create_time epoch seconds must be >= 0",
                     epochSeconds,
                     String.class
-            );
+                    );
         }
         return Instant.ofEpochSecond(epochSeconds).toString();
     }
 
-    private String deserializeIso8601(JsonParser p) {
+    private String deserializeIso8601(JsonParser p) throws IOException {
         String value = p.getText();
         try {
-            // OffsetDateTime handles ISO 8601 with timezone offsets; Instant handles the Z suffix.
-            // Normalize to UTC and format as a Z-suffix string for consistent storage.
             return OffsetDateTime.parse(value).toInstant().toString();
         } catch (DateTimeParseException e) {
             throw InvalidFormatException.from(

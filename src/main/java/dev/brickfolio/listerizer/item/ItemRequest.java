@@ -1,7 +1,7 @@
 package dev.brickfolio.listerizer.item;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import tools.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 
 public record ItemRequest(
         String url,
