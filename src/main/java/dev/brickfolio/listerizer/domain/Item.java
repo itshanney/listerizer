@@ -1,4 +1,4 @@
 package dev.brickfolio.listerizer.domain;
 
-public record Item(long id, String url, String createTime) {
+public record Item(long id, String url, long createTime) {
 }

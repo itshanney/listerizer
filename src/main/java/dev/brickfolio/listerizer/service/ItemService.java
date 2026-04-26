@@ -20,7 +20,6 @@ public class ItemService {
 
     public InsertResult create(ItemRequest request) {
         validateRequest(request);
-        // createTime is already normalized to ISO 8601 UTC by CreateTimeDeserializer
         return repository.insertOrFetch(request.url(), request.createTime());
     }
 
@@ -29,7 +28,7 @@ public class ItemService {
     }
 
     private void validateRequest(ItemRequest request) {
-        if(request == null) {
+        if (request == null) {
             throw new ValidationException("Request must be valid and non-empty");
         }
         if (request.url() == null || request.url().isBlank()) {
@@ -42,6 +41,12 @@ public class ItemService {
             }
         } catch (URISyntaxException e) {
             throw new ValidationException("url is required and must be a valid URL");
+        }
+        if (request.createTime() == null) {
+            throw new ValidationException("create_time is required");
+        }
+        if (request.createTime() < 0) {
+            throw new ValidationException("create_time must be a non-negative epoch seconds integer");
         }
     }
 }

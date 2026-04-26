@@ -28,10 +28,10 @@ A simple REST API service that accepts and returns JSON. It exposes at minimum o
 ### POST /items
 
 - Accepts `Content-Type: application/json`.
-- Request body must include `url` (string, valid URL format) and `create_time` (string, ISO 8601 datetime).
+- Request body must include `url` (string, valid URL format) and `create_time` (integer, Unix epoch seconds ≥ 0).
 - Returns `201 Created` with the stored item (including a server-assigned `id`) on success.
 - Returns `400 Bad Request` with an error message if `url` is missing or not a valid URL.
-- Returns `400 Bad Request` with an error message if `create_time` is missing or not a valid ISO 8601 datetime.
+- Returns `400 Bad Request` with an error message if `create_time` is missing or not a non-negative integer.
 - Returns `409 Conflict` if the same `url` already exists in the store.
 
 ### GET /items
@@ -39,7 +39,7 @@ A simple REST API service that accepts and returns JSON. It exposes at minimum o
 - Returns `200 OK` with a JSON array of all stored items.
 - Each item in the array includes `id`, `url`, and `create_time`.
 - Returns an empty array `[]` (not a 404) when no items are stored.
-- `create_time` should be returned in a human-readable ISO 8601 format.
+- `create_time` is returned as a Unix epoch seconds integer.
 
 ### General
 
@@ -68,7 +68,7 @@ A simple REST API service that accepts and returns JSON. It exposes at minimum o
 3. **Duplicate handling**: Duplicates should be idempotent and allowed.
 4. **Hosting target**: Server will run on a small Linux workstation.
 5. **`create_time` ownership**: The server should accept the timestamp from the request and persist that.
-6. **Timestamps**: Timestamps will support the standard seconds since the epoch format or ISO 8601 format.
+6. **Timestamps**: Timestamps are Unix epoch seconds integers throughout — in requests, responses, and storage.
 
 ---
 
