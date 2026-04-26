@@ -32,3 +32,9 @@ test {
 bootJar {
     archiveFileName = 'listerizer.jar'
 }
+
+tasks.register('dockerBuild', Exec) {
+    group = 'docker'
+    description = 'Builds the Docker image'
+    commandLine 'docker', 'build', '-t', 'listerizer', '.'
+}
