@@ -22,8 +22,19 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-json'
     implementation 'org.springframework.boot:spring-boot-starter-jdbc'
     implementation 'org.xerial:sqlite-jdbc:3.46.0.0'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+test {
+    useJUnitPlatform()
 }
 
 bootJar {
     archiveFileName = 'listerizer.jar'
+}
+
+tasks.register('dockerBuild', Exec) {
+    group = 'docker'
+    description = 'Builds the Docker image'
+    commandLine 'docker', 'build', '-t', 'listerizer', '.'
 }

@@ -1,5 +1,7 @@
-package dev.brickfolio.listerizer.item;
+package dev.brickfolio.listerizer.repository;
 
+import dev.brickfolio.listerizer.domain.Item;
+import dev.brickfolio.listerizer.service.InsertResult;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
@@ -13,7 +15,7 @@ public class ItemRepository {
             (rs, rowNum) -> new Item(
                     rs.getLong("id"),
                     rs.getString("url"),
-                    rs.getString("create_time")
+                    rs.getLong("create_time")
             );
 
     private final JdbcTemplate jdbc;
@@ -26,7 +28,7 @@ public class ItemRepository {
      * Inserts a new item, ignoring the insert if the URL already exists (SQLite INSERT OR IGNORE).
      * Returns the inserted row on success, or the pre-existing row on duplicate.
      */
-    public InsertResult insertOrFetch(String url, String createTime) {
+    public InsertResult insertOrFetch(String url, long createTime) {
         int affected = jdbc.update(
                 "INSERT OR IGNORE INTO items (url, create_time) VALUES (?, ?)",
                 url, createTime
