@@ -1,5 +1,6 @@
 package dev.brickfolio.listerizer;
 
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -105,9 +106,9 @@ class ItemApiIntegrationTest {
                 """);
 
         JsonNode body = objectMapper.readTree(response.body());
-        assertThat(body.get("id").asLong()).isPositive();
-        assertThat(body.get("url").asText()).isEqualTo("https://example.com");
-        assertThat(body.get("create_time").asLong()).isEqualTo(CREATE_TIME);
+        Assertions.assertThat(body.get("id").asLong()).isPositive();
+        Assertions.assertThat(body.get("url").asText()).isEqualTo("https://example.com");
+        Assertions.assertThat(body.get("create_time").asLong()).isEqualTo(CREATE_TIME);
     }
 
     // -------------------------------------------------------------------------
@@ -139,8 +140,8 @@ class ItemApiIntegrationTest {
         JsonNode firstBody  = objectMapper.readTree(first.body());
         JsonNode secondBody = objectMapper.readTree(second.body());
 
-        assertThat(secondBody.get("id").asLong()).isEqualTo(firstBody.get("id").asLong());
-        assertThat(secondBody.get("create_time").asLong()).isEqualTo(CREATE_TIME);
+        Assertions.assertThat(secondBody.get("id").asLong()).isEqualTo(firstBody.get("id").asLong());
+        Assertions.assertThat(secondBody.get("create_time").asLong()).isEqualTo(CREATE_TIME);
     }
 
     // -------------------------------------------------------------------------
@@ -217,8 +218,8 @@ class ItemApiIntegrationTest {
                 """);
 
         JsonNode body = objectMapper.readTree(response.body());
-        assertThat(body.get("error").asText()).isEqualTo("invalid_request");
-        assertThat(body.has("message")).isTrue();
+        Assertions.assertThat(body.get("error").asText()).isEqualTo("invalid_request");
+        Assertions.assertThat(body.has("message")).isTrue();
     }
 
     @Test
@@ -254,8 +255,8 @@ class ItemApiIntegrationTest {
     @Test
     void get_returns_empty_array_when_no_items_stored() throws Exception {
         JsonNode body = objectMapper.readTree(get("/items").body());
-        assertThat(body.isArray()).isTrue();
-        assertThat(body.isEmpty()).isTrue();
+        Assertions.assertThat(body.isArray()).isTrue();
+        Assertions.assertThat(body.isEmpty()).isTrue();
     }
 
     @Test
@@ -268,8 +269,8 @@ class ItemApiIntegrationTest {
                 """);
 
         JsonNode body = objectMapper.readTree(get("/items").body());
-        assertThat(body.isArray()).isTrue();
-        assertThat(body.size()).isEqualTo(2);
+        Assertions.assertThat(body.isArray()).isTrue();
+        Assertions.assertThat(body.size()).isEqualTo(2);
     }
 
     @Test
@@ -286,9 +287,9 @@ class ItemApiIntegrationTest {
 
         JsonNode body = objectMapper.readTree(get("/items").body());
 
-        assertThat(body.get(0).get("url").asText()).isEqualTo("https://first.com");
-        assertThat(body.get(1).get("url").asText()).isEqualTo("https://second.com");
-        assertThat(body.get(2).get("url").asText()).isEqualTo("https://third.com");
+        Assertions.assertThat(body.get(0).get("url").asText()).isEqualTo("https://first.com");
+        Assertions.assertThat(body.get(1).get("url").asText()).isEqualTo("https://second.com");
+        Assertions.assertThat(body.get(2).get("url").asText()).isEqualTo("https://third.com");
     }
 
     @Test
@@ -298,9 +299,9 @@ class ItemApiIntegrationTest {
                 """);
 
         JsonNode item = objectMapper.readTree(get("/items").body()).get(0);
-        assertThat(item.has("id")).isTrue();
-        assertThat(item.has("url")).isTrue();
-        assertThat(item.has("create_time")).isTrue();
+        Assertions.assertThat(item.has("id")).isTrue();
+        Assertions.assertThat(item.has("url")).isTrue();
+        Assertions.assertThat(item.has("create_time")).isTrue();
     }
 
     @Test
@@ -310,8 +311,8 @@ class ItemApiIntegrationTest {
                 """);
 
         JsonNode item = objectMapper.readTree(get("/items").body()).get(0);
-        assertThat(item.get("create_time").isNumber()).isTrue();
-        assertThat(item.get("create_time").asLong()).isEqualTo(CREATE_TIME);
+        Assertions.assertThat(item.get("create_time").isNumber()).isTrue();
+        Assertions.assertThat(item.get("create_time").asLong()).isEqualTo(CREATE_TIME);
     }
 
     @Test

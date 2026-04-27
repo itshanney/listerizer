@@ -25,13 +25,44 @@ dependencies {
     implementation 'com.mysql:mysql-connector-j:9.7.0'
     implementation 'org.flywaydb:flyway-mysql:12.4.0'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
-    testImplementation 'org.testcontainers:testcontainers-mysql:2.0.4'
-    testImplementation 'org.testcontainers:testcontainers-junit-jupiter:2.0.4'
+
 }
 
-test {
-    useJUnitPlatform()
+testing {
+    suites {
+        // 1. Configure the default Unit Test suite (already exists implicitly)
+        test {
+            useJUnitJupiter() // Enables JUnit 5
+        }
+
+        // 2. Create the custom Integration Test suite
+        integrationTest(JvmTestSuite) {
+            useJUnitJupiter()
+
+            dependencies {
+                // Allows integration tests to see your main application code
+                implementation project()
+
+                // Add your testing libraries here
+                implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+                implementation 'org.springframework.boot:spring-boot-starter-jersey'
+                implementation 'org.springframework.boot:spring-boot-starter-json'
+                implementation 'org.springframework.boot:spring-boot-starter-test'
+                implementation 'org.springframework.boot:spring-boot-testcontainers'
+                implementation 'org.testcontainers:testcontainers-mysql:2.0.4'
+                implementation 'org.testcontainers:testcontainers-junit-jupiter:2.0.4'
+            }
+
+            targets {
+                all {
+                    testTask.configure {
+                        // Crucial: Ensures integration tests only run if unit tests pass first
+                        shouldRunAfter(test)
+                    }
+                }
+            }
+        }
+    }
 }
 
 bootJar {
