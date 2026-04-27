@@ -1,0 +1,62 @@
+---
+- name: Deploy listerizer application
+  hosts: localhost
+  become: true
+  tasks:
+    - name: Create the listerizer group
+      ansible.builtin.group:
+        name: listerizer
+        state: present
+
+    - name: Create the listerizer user
+      ansible.builtin.user:
+        name: listerizer
+        shell: /bin/bash
+        groups: sudo,listerizer
+        append: yes
+        state: present
+
+    - name: Stop current version of listerizer service
+      ansible.builtin.service:
+        name: listerizer
+        state: stopped
+
+    - name: Lay down listerizer.service file
+      ansible.builtin.files:
+        src: files/listerizer.service
+        dest: /etc/systemd/system/listerizer.service
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Enable listerizer.service
+      ansible.builtin.service:
+        name: listerizer
+        enabled: yes
+
+    - name: Ensure listerizer/listerizer owns app directory
+      ansible.builtin.file:
+        path: /var/lib/listerizer
+        state: directory
+        recurse: yes
+        owner: listerizer
+        group: listerizer
+
+    - name: Copy old jar to backup app path
+      ansible.builtin.copy:
+        src: /var/lib/listerizer/listerizer.jar
+        dest: /var/lib/listerizer/listerizer-prev.jar
+        owner: listerizer
+        group: listerizer
+
+    - name: Copy download jar to live app path
+      ansible.builtin.copy:
+        src: /var/lib/listerizer/download/{{ new_jar }}
+        dest: /var/lib/listerizer/listerizer.jar
+        owner: listerizer
+        group: listerizer
+
+    - name: Start new version of listerizer service
+      ansible.builtin.service:
+        name: listerizer
+        state: started

@@ -1,0 +1,3 @@
+[app]
+localhost       ansible_connection=local
+listerizer
