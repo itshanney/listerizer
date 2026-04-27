@@ -8,11 +8,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -22,11 +26,12 @@ import static org.mockito.Mockito.when;
  * Covered:
  *   - URL validation: null, blank, whitespace-only, missing scheme, missing host, valid HTTP/HTTPS
  *   - create_time validation: null (missing field), negative epoch
- *   - Delegation: create() passes url and createTime to the repository unchanged
- *   - list() delegates to repository and returns results as-is
+ *   - Delegation: create() passes url and createTime to repository.save() unchanged
+ *   - create() returns isNew=true on successful save, isNew=false on duplicate URL
+ *   - list() delegates to repository.findAllByOrderByIdAsc() and returns results as-is
  *
  * Not covered:
- *   - Idempotency logic — owned entirely by ItemRepository, not by ItemService
+ *   - IllegalStateException path (duplicate URL but row missing after conflict) — race condition
  */
 @ExtendWith(MockitoExtension.class)
 class ItemServiceTest {
@@ -108,65 +113,67 @@ class ItemServiceTest {
     @Test
     void create_accepts_http_url() {
         ItemRequest request = new ItemRequest("http://example.com", CREATE_TIME);
-        InsertResult expected = new InsertResult(new Item(1, "http://example.com", CREATE_TIME), true);
-        when(repository.insertOrFetch("http://example.com", CREATE_TIME)).thenReturn(expected);
+        when(repository.save(any(Item.class))).thenReturn(new Item("http://example.com", CREATE_TIME));
 
         InsertResult result = itemService.create(request);
 
-        assertThat(result).isEqualTo(expected);
+        assertThat(result.isNew()).isTrue();
+        assertThat(result.item().url()).isEqualTo("http://example.com");
+        assertThat(result.item().createTime()).isEqualTo(CREATE_TIME);
     }
 
     @Test
     void create_accepts_https_url_with_path_and_query() {
         String url = "https://example.com/path?q=1&page=2";
         ItemRequest request = new ItemRequest(url, CREATE_TIME);
-        InsertResult expected = new InsertResult(new Item(1, url, CREATE_TIME), true);
-        when(repository.insertOrFetch(url, CREATE_TIME)).thenReturn(expected);
+        when(repository.save(any(Item.class))).thenReturn(new Item(url, CREATE_TIME));
 
         InsertResult result = itemService.create(request);
 
-        assertThat(result).isEqualTo(expected);
+        assertThat(result.isNew()).isTrue();
+        assertThat(result.item().url()).isEqualTo(url);
     }
 
     @Test
     void create_accepts_epoch_zero() {
         ItemRequest request = new ItemRequest(VALID_URL, 0L);
-        InsertResult expected = new InsertResult(new Item(1, VALID_URL, 0L), true);
-        when(repository.insertOrFetch(VALID_URL, 0L)).thenReturn(expected);
+        when(repository.save(any(Item.class))).thenReturn(new Item(VALID_URL, 0L));
 
         InsertResult result = itemService.create(request);
 
-        assertThat(result).isEqualTo(expected);
+        assertThat(result.isNew()).isTrue();
+        assertThat(result.item().createTime()).isEqualTo(0L);
     }
 
     @Test
     void create_delegates_url_and_create_time_to_repository_unchanged() {
         ItemRequest request = new ItemRequest(VALID_URL, CREATE_TIME);
-        InsertResult expected = new InsertResult(new Item(42, VALID_URL, CREATE_TIME), true);
-        when(repository.insertOrFetch(VALID_URL, CREATE_TIME)).thenReturn(expected);
+        when(repository.save(any(Item.class))).thenReturn(new Item(VALID_URL, CREATE_TIME));
 
         itemService.create(request);
 
-        verify(repository).insertOrFetch(VALID_URL, CREATE_TIME);
+        verify(repository).save(argThat(item ->
+                item.url().equals(VALID_URL) && item.createTime() == CREATE_TIME));
     }
 
     @Test
-    void create_returns_repository_insert_result_unchanged() {
+    void create_returns_is_new_false_when_url_already_exists() {
         ItemRequest request = new ItemRequest(VALID_URL, CREATE_TIME);
-        InsertResult expected = new InsertResult(new Item(7, VALID_URL, CREATE_TIME), false);
-        when(repository.insertOrFetch(VALID_URL, CREATE_TIME)).thenReturn(expected);
+        Item existing = new Item(VALID_URL, CREATE_TIME);
+        when(repository.save(any(Item.class))).thenThrow(DataIntegrityViolationException.class);
+        when(repository.findByUrl(VALID_URL)).thenReturn(Optional.of(existing));
 
         InsertResult result = itemService.create(request);
 
         assertThat(result.isNew()).isFalse();
-        assertThat(result.item().id()).isEqualTo(7);
+        assertThat(result.item().url()).isEqualTo(VALID_URL);
     }
 
     // --- list ---
 
     @Test
     void list_returns_empty_list_when_repository_is_empty() {
-        when(repository.findAll()).thenReturn(List.of());
+        when(repository.findAllByOrderByIdAsc()).thenReturn(List.of());
 
         assertThat(itemService.list()).isEmpty();
     }
@@ -174,10 +181,10 @@ class ItemServiceTest {
     @Test
     void list_returns_all_items_from_repository() {
         List<Item> items = List.of(
-                new Item(1, "https://first.com",  1735689600L),
-                new Item(2, "https://second.com", 1738368000L)
+                new Item("https://first.com",  1735689600L),
+                new Item("https://second.com", 1738368000L)
         );
-        when(repository.findAll()).thenReturn(items);
+        when(repository.findAllByOrderByIdAsc()).thenReturn(items);
 
         assertThat(itemService.list()).isEqualTo(items);
     }

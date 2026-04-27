@@ -20,6 +20,9 @@ gradle/wrapper/gradle-wrapper.jar
 # Spring Boot exploded jar
 out/
 
+# Spring Boot
+flyway.conf
+
 # ── IDE ──────────────────────────────────────────────────────────────────────
 
 # IntelliJ IDEA
@@ -30,6 +33,7 @@ out/
 
 # VS Code
 .vscode/
+.env
 
 # Eclipse
 .classpath

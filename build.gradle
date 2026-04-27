@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'dev.brickfolio.listerizer'
-version = '0.1.0'
+version = '0.2.0'
 
 java {
     toolchain {
@@ -18,11 +18,16 @@ repositories {
 }
 
 dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-flyway'
     implementation 'org.springframework.boot:spring-boot-starter-jersey'
     implementation 'org.springframework.boot:spring-boot-starter-json'
-    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
-    implementation 'org.xerial:sqlite-jdbc:3.46.0.0'
+    implementation 'com.mysql:mysql-connector-j:9.7.0'
+    implementation 'org.flywaydb:flyway-mysql:12.4.0'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    testImplementation 'org.testcontainers:testcontainers-mysql:2.0.4'
+    testImplementation 'org.testcontainers:testcontainers-junit-jupiter:2.0.4'
 }
 
 test {

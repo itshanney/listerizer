@@ -3,6 +3,8 @@ package dev.brickfolio.listerizer.service;
 import dev.brickfolio.listerizer.api.ItemRequest;
 import dev.brickfolio.listerizer.domain.Item;
 import dev.brickfolio.listerizer.repository.ItemRepository;
+
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -18,13 +20,24 @@ public class ItemService {
         this.repository = repository;
     }
 
+    // Not @Transactional: CrudRepository.save() runs in its own transaction and commits
+    // immediately, so a duplicate-URL DataIntegrityViolationException is thrown from save()
+    // and caught here. An outer transaction would defer the flush past this catch block.
     public InsertResult create(ItemRequest request) {
         validateRequest(request);
-        return repository.insertOrFetch(request.url(), request.createTime());
+        try {
+            Item saved = repository.save(new Item(request.url(), request.createTime()));
+            return new InsertResult(saved, true);
+        } catch (DataIntegrityViolationException e) {
+            Item existing = repository.findByUrl(request.url())
+                    .orElseThrow(() -> new IllegalStateException(
+                            "URL conflict but no existing row found: " + request.url(), e));
+            return new InsertResult(existing, false);
+        }
     }
 
     public List<Item> list() {
-        return repository.findAll();
+        return repository.findAllByOrderByIdAsc();
     }
 
     private void validateRequest(ItemRequest request) {
