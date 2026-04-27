@@ -22,7 +22,7 @@
         state: stopped
 
     - name: Lay down listerizer.service file
-      ansible.builtin.files:
+      ansible.builtin.copy:
         src: files/listerizer.service
         dest: /etc/systemd/system/listerizer.service
         owner: root
