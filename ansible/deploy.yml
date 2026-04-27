@@ -16,10 +16,10 @@
         append: yes
         state: present
 
-#    - name: Stop current version of listerizer service
-#      ansible.builtin.service:
-#        name: listerizer
-#        state: stopped
+    - name: Stop current version of listerizer service
+      ansible.builtin.service:
+        name: listerizer
+        state: stopped
 
     - name: Lay down listerizer.service file
       ansible.builtin.copy:
@@ -51,7 +51,7 @@
 
     - name: Copy download jar to live app path
       ansible.builtin.copy:
-        src: /var/lib/listerizer/download/{{ new_jar }}
+        src: /var/lib/listerizer/download/{{ jar_name }}
         dest: /var/lib/listerizer/listerizer.jar
         owner: listerizer
         group: listerizer

@@ -50,7 +50,7 @@ pipeline {
                 sh """
                     ansible-playbook -i ${ANSIBLE_INVENTORY} \
                                      ${ANSIBLE_PLAYBOOK} \
-                                     --extra-vars "new_jar=${TARGET_DIR}/${JAR_NAME} app_name=${APP_NAME}"
+                                     --extra-vars "jar_name=${JAR_NAME} app_name=${APP_NAME}"
                 """
             }
         }
