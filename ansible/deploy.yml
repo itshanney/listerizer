@@ -16,10 +16,10 @@
         append: yes
         state: present
 
-    - name: Stop current version of listerizer service
-      ansible.builtin.service:
-        name: listerizer
-        state: stopped
+#    - name: Stop current version of listerizer service
+#      ansible.builtin.service:
+#        name: listerizer
+#        state: stopped
 
     - name: Lay down listerizer.service file
       ansible.builtin.copy:

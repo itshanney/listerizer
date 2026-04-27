@@ -43,16 +43,9 @@ pipeline {
             steps {
                 echo "Deploying ${APP_NAME} to brickone server..."
 
-                // 1. Create the directory (if it doesn't exist) and copy the JAR
-                // Using standard Linux commands via the 'sh' step
                 echo "Copying artifact to ${TARGET_DIR}..."
-                sh "mkdir -p ${TARGET_DIR}"
-
-                // We copy *.jar and rename it cleanly so the Ansible script always knows the exact filename
                 sh "cp build/libs/listerizer.jar ${TARGET_DIR}/${JAR_NAME}"
 
-                // 2. Execute the Ansible playbook
-                // Passing variables directly to Ansible using --extra-vars
                 echo "Executing Ansible playbook..."
                 sh """
                     ansible-playbook -i ${ANSIBLE_INVENTORY} \
