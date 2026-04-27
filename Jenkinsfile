@@ -10,6 +10,11 @@ pipeline {
     // Defines environment variables available to all stages
     environment {
         APP_NAME = "listerizer"
+
+        JAR_NAME = "listerizer.jar"
+        TARGET_DIR = "/var/lib/${APP_NAME}/download"
+        ANSIBLE_INVENTORY = "ansible/inventory/listerizer"
+        ANSIBLE_PLAYBOOK = "ansible/deploy.yml"
     }
 
     stages {
@@ -31,6 +36,29 @@ pipeline {
             steps {
                 echo 'Running integration tests...'
                 sh 'gradle integrationTest'
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo "Deploying ${APP_NAME} to brickone server..."
+
+                // 1. Create the directory (if it doesn't exist) and copy the JAR
+                // Using standard Linux commands via the 'sh' step
+                echo "Copying artifact to ${TARGET_DIR}..."
+                sh "mkdir -p ${TARGET_DIR}"
+
+                // We copy *.jar and rename it cleanly so the Ansible script always knows the exact filename
+                sh "cp build/libs/listerizer.jar ${TARGET_DIR}/${JAR_NAME}"
+
+                // 2. Execute the Ansible playbook
+                // Passing variables directly to Ansible using --extra-vars
+                echo "Executing Ansible playbook..."
+                sh """
+                    ansible-playbook -i ${ANSIBLE_INVENTORY} \
+                                     ${ANSIBLE_PLAYBOOK} \
+                                     --extra-vars "new_jar=${TARGET_DIR}/${JAR_NAME} app_name=${APP_NAME}"
+                """
             }
         }
     }
