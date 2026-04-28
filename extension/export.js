@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const jsonOutput = document.getElementById('jsonOutput');
   const downloadBtn = document.getElementById('downloadBtn');
   const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+  const syncBtn = document.getElementById('syncBtn');
   const statusMsg = document.getElementById('status');
   
   let readingListData = [];
@@ -25,12 +26,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       jsonOutput.textContent = "Your Reading List is empty.\n\n[]";
       downloadBtn.disabled = true;
       downloadCsvBtn.disabled = true;
+      syncBtn.disabled = true;
     }
   } catch (error) {
     console.error('Error fetching reading list:', error);
     jsonOutput.textContent = `Error loading reading list: ${error.message}`;
     downloadBtn.disabled = true;
     downloadCsvBtn.disabled = true;
+    syncBtn.disabled = true;
   }
 
   downloadBtn.addEventListener('click', () => {
@@ -110,5 +113,49 @@ document.addEventListener('DOMContentLoaded', async () => {
       statusMsg.style.color = '#ef4444';
       statusMsg.classList.add('visible');
     }
+  });
+
+  syncBtn.addEventListener('click', async () => {
+    if (readingListData.length === 0) return;
+
+    syncBtn.disabled = true;
+    statusMsg.style.color = '';
+    statusMsg.textContent = 'Syncing...';
+    statusMsg.classList.add('visible');
+
+    const results = [];
+
+    for (const item of readingListData) {
+      const payload = {
+        url: item.url,
+        create_time: item.creationTime
+      };
+
+      try {
+        const response = await fetch('https://listerizer.brickfolio.dev/items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const responseBody = await response.json().catch(() => null);
+        results.push({ url: item.url, status: response.status, body: responseBody });
+      } catch (err) {
+        console.log(err);
+        results.push({ url: item.url, status: 'error', error: err.message });
+      }
+    }
+
+    jsonOutput.textContent = JSON.stringify(results, null, 2);
+
+    const errorCount = results.filter(r => r.status === 'error' || r.status >= 400).length;
+    if (errorCount === 0) {
+      statusMsg.style.color = '#10b981';
+      statusMsg.textContent = `Synced ${results.length} item${results.length !== 1 ? 's' : ''} successfully!`;
+    } else {
+      statusMsg.style.color = '#ef4444';
+      statusMsg.textContent = `Sync complete: ${errorCount} error${errorCount !== 1 ? 's' : ''} out of ${results.length} items.`;
+    }
+
+    syncBtn.disabled = false;
   });
 });

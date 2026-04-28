@@ -6,6 +6,9 @@
   "permissions": [
     "readingList"
   ],
+  "host_permissions": [
+    "https://listerizer.brickfolio.dev/*"
+  ],
   "action": {
     "default_title": "Export Reading List"
   },
