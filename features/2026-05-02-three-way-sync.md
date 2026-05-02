@@ -15,11 +15,11 @@ The reading list pipeline has three data stores — the Chrome Reading List, a G
 
 Two-phase work:
 
-**Phase 1 — Extend the API schema** to store `title` (string) and `hasBeenRead` (boolean) alongside the existing `url` and `create_time`. This unblocks both sync paths.
+**Phase 1 — Extend the API schema** to store `title` (string) and `hasBeenRead` (boolean) alongside the existing `url` and `createTime`. All JSON field names are camelCase; the former `create_time` snake_case field is renamed to `createTime` in this release. This unblocks both sync paths.
 
 **Phase 2A — Ongoing sync (Chrome → API)**: Update the Chrome extension's "Sync to Service" button to include `title` and `has_been_read` in the POST payload. The API upsert must update `title` and `hasBeenRead` on conflict (currently it ignores duplicates entirely — that behavior must change for read-status to propagate).
 
-**Phase 2B — One-time migration (Google Sheets → API)**: A GAS function (run once, manually) reads all rows from the Google Sheet and POSTs each item to the API with its `title`, `url`, and `hasBeenRead` state. Because the Sheet does not store `creationTime`, `create_time` will be omitted or defaulted; confirm handling in Open Questions. Items already in the API receive an update to `hasBeenRead` and `title` per the merge rule below.
+**Phase 2B — One-time migration (Google Sheets → API)**: A GAS function (run once, manually) reads all rows from the Google Sheet and POSTs each item to the API with its `title`, `url`, and `hasBeenRead` state. Because the Sheet does not store a creation timestamp, `createTime` is omitted; the server defaults to the current system time for those items. Items already in the API receive an update to `hasBeenRead` and `title` per the merge rule below.
 
 **Phase 2C — GAS write-back (ongoing)**: After `runListerizer()` in `appscript/listerizer.gs` marks an item read in the Sheet and sends the email, it also POSTs the read-status update to the Listerizer API so the API reflects the change immediately rather than waiting for the next Chrome sync.
 
@@ -43,7 +43,7 @@ Row 0 is treated as a header row; data begins at row index 1. Gemini summaries a
 
 ## User Stories
 
-1. As a user, I want the Chrome Reading List sync to send title and read-status to the API, so that the API contains a complete and current record for every item.
+1. As a user, I want the ChromList sync to send title and read-status to the API, so that the API contains a complete and current record for every item.
 2. As a user, I want my historically read items from Google Sheets migrated to the API, so that the full reading history exists in one place before I retire the Sheets-based workflow.
 3. As the GAS script, I want to write an item's read-status back to the API after processing it, so that the API stays authoritative without requiring a manual Chrome sync.
 4. As a user, I want duplicate URLs handled correctly during sync, so that re-running the sync or Chrome export does not corrupt or reset data.
@@ -95,7 +95,7 @@ Row 0 is treated as a header row; data begins at row index 1. Gemini summaries a
 
 ## Open Questions
 
-1. **`create_time` for Sheets migration**: The Google Sheet does not store a creation timestamp. When migrating rows, should `create_time` be omitted (requiring the API to either accept null or assign a server-side default), set to 0, or set to the migration run time? Resolution affects the API validation rule (currently `create_time` is required and must be ≥ 0).
+1. **`createTime` for Sheets migration**: ~~Resolved~~ — `createTime` is optional on POST; the server defaults to current system time when absent. Items migrated from Sheets will carry the migration timestamp.
 
 2. **API backward compatibility for `POST /items` on duplicate URLs**: The current behavior returns `200 OK` and silently ignores the duplicate. Changing to an upsert that updates `hasBeenRead`/`title` is a behavior change — is any existing consumer relying on the "ignore" behavior that would break?
 

@@ -4,55 +4,59 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Listerizer is a two-part system for managing a Chrome Reading List and generating AI-powered article summaries:
+Listerizer is a three-part system for managing a Chrome Reading List and generating AI-powered article summaries:
 
-1. **Chrome Extension** (`extension/`) — Manifest V3 extension that exports the Chrome reading list to JSON or CSV.
-2. **Google Apps Script** (`extension/listerizer.gs`) — Runs on a schedule to pick an unread item, fetch its content, summarize it via the Gemini API, and email the result.
+1. **Chrome Extension** (`extension/`) — Manifest V3 extension that exports the Chrome reading list to JSON or CSV, and syncs items to the Listerizer REST API.
+2. **Google Apps Script** (`appscript/listerizer.gs`) — Active pipeline. Reads unread items from a Google Sheets spreadsheet, fetches page content, summarizes via the Gemini API, marks the item as read in the Sheet, and emails the result.
+3. **Spring Boot REST API** (repo root) — The source of truth for reading list items. Accepts upserts from the Chrome extension and will receive write-backs from the GAS script.
+
+> `extension/listerizer.gs` is a legacy script that reads from a Google Drive JSON file. It is superseded by `appscript/listerizer.gs` and should not be modified.
 
 ## Architecture
 
 ### Data Flow
 
 1. User triggers the Chrome extension → `background.js` opens `export.html` in a new tab.
-2. `export.js` calls `chrome.readingList.query({})` and renders the list; user downloads as JSON or CSV.
-3. The downloaded JSON is placed in a specific Google Drive folder (ID stored in script properties).
-4. `runListerizer()` in `listerizer.gs` reads that file from Drive, picks the first unread item, strips the page HTML, sends it to Gemini, marks the item as read in the JSON file, and emails the summary via `MailApp`.
+2. `export.js` calls `chrome.readingList.query({})` and renders the list; user can download as JSON or CSV, or click "Sync to Service" to POST all items to the REST API.
+3. `appscript/listerizer.gs` runs on a schedule: reads the Google Sheets spreadsheet, picks the first row where `hasBeenRead` is false, fetches the page, generates a Gemini summary, marks the row as read (`hasBeenRead = true`), and emails the summary.
 
 ### Key Constraints
 
 **Chrome Extension (Manifest V3)**
 - `background.js` is a service worker — no persistent state, no DOM access.
 - Only the `readingList` permission is declared; no `downloads` or other permissions are used (downloads are triggered via a blob URL + `<a>` click in `export.js`).
+- The "Sync to Service" button in `export.js` POSTs to `https://listerizer.brickfolio.dev/items`.
 
-**Google Apps Script**
-- Uses GAS-specific globals: `PropertiesService`, `DriveApp`, `UrlFetchApp`, `MailApp`, `Session`, `Logger`.
+**Google Apps Script (`appscript/listerizer.gs`)**
+- Uses GAS-specific globals: `PropertiesService`, `SpreadsheetApp`, `UrlFetchApp`, `MailApp`, `Session`, `Logger`.
 - No Node.js/npm — do not introduce `require()` or any module syntax.
 - `showdown.js` is loaded as a GAS library for Markdown→HTML conversion before emailing.
 - Required script properties: `GEMINI_API_KEY`, `JSON_FOLDER_ID`.
-- The Drive file ID for the reading list JSON is currently hardcoded in `listerizer.gs:13`.
+- Google Sheets spreadsheet ID: `1SqGoYhG9WKWbc096SBD_73J0gWusyQUM02SKkJD2jus`. Sheet columns: index 0 = title, index 1 = url, index 2 = hasBeenRead (boolean). Row 0 is a header row; data begins at index 1.
 - Gemini model: `gemini-2.5-flash-lite` via `generativelanguage.googleapis.com/v1beta`.
 
 ## Spring Boot + Jersey REST API
 
-A separate Java service lives at the repo root, built with Spring Boot 4 / Java 25 and Jersey as the JAX-RS implementation.
+A Java service at the repo root, built with Spring Boot 4 / Java 25, Jersey (JAX-RS), Spring Data JPA, and Flyway.
 
 ### Commands
 
 ```bash
-gradle bootRun             # run the API server (port 5080)
-gradle build               # compile + build listerizer.jar
-gradle test                # run tests
+gradle bootRun              # run the API server (port 5080)
+gradle build                # compile + build listerizer.jar
+gradle test                 # run unit tests
+gradle integrationTest      # run integration tests (requires Docker for Testcontainers)
 ```
 
 ### Architecture
 
-**Request path:** HTTP → Jersey servlet → `ItemController` (JAX-RS) → `ItemService` → `ItemRepository` (JdbcTemplate) → SQLite
+**Request path:** HTTP → Jersey servlet → `ItemController` (JAX-RS) → `ItemService` → `ItemRepository` (Spring Data JPA) → MySQL
 
 - `JerseyConfig` — registers all JAX-RS resources and exception mappers with Jersey's `ResourceConfig`.
 - `ItemController` (`api`) — `POST /items` (upsert) and `GET /items` (list). Returns `201 Created` for new URLs, `200 OK` for duplicates.
-- `ItemService` (`service`) — validates the URL, delegates to the repository.
-- `ItemRepository` (`repository`) — uses `INSERT OR IGNORE` so duplicate URLs are a no-op; returns the existing row on conflict.
-- `schema.sql` runs on every startup via `spring.sql.init.mode=always`; the `CREATE TABLE IF NOT EXISTS` is idempotent.
+- `ItemService` (`service`) — validates the URL and `create_time`, delegates to the repository. On a duplicate-URL `DataIntegrityViolationException`, fetches the existing row and returns it.
+- `ItemRepository` (`repository`) — extends `CrudRepository<Item, Long>`. `save()` issues INSERT for new entities; `findByUrl()` is used for conflict resolution.
+- Flyway manages schema migrations. Migration files live in `src/main/resources/db/migration/` and follow the `V{n}__{description}.sql` naming convention. The current schema is defined in `V1__create_items_table.sql`.
 
 **Package structure:**
 
@@ -64,21 +68,28 @@ gradle test                # run tests
 | `dev.brickfolio.listerizer.repository` | `ItemRepository` |
 | `dev.brickfolio.listerizer.domain` | `Item` |
 
-**Database:** SQLite, configured via `spring.datasource.url`. Override the path with the `LISTERIZER_DB_PATH` environment variable (defaults to `~/listerizer.db`). Pool size is forced to 1 (SQLite single-writer limit); WAL mode is enabled for concurrent reads.
+**Database:** MySQL 9. Connection configured via environment variables (see Configuration). Hikari connection pool, max size 5.
 
-**`create_time` handling:** stored and returned as a Unix epoch seconds integer (`long`). Jackson deserializes it natively — no custom deserializer. `ItemService` validates that the value is non-null and ≥ 0.
+**`create_time` handling:** stored and returned as a Unix epoch seconds integer (`long`). The JSON field is currently `create_time` (snake_case, via `@JsonProperty`). `ItemService` validates that the value is non-null and ≥ 0.
 
-**Exception mappers:** `ValidationExceptionMapper` and `JacksonExceptionMapper` translate domain/deserialization errors into JSON error responses; `ErrorResponse` is the shared response record.
+**Exception mappers:** `ValidationExceptionMapper` and `JacksonExceptionMapper` translate domain/deserialization errors into JSON `{"error": "invalid_request", "message": "..."}` responses.
 
 ### Configuration
 
 | Property | Default | Override |
 |---|---|---|
 | `server.port` | `5080` | standard Spring env |
-| `spring.datasource.url` | `~/listerizer.db` | `LISTERIZER_DB_PATH` env var |
+| `spring.datasource.url` | `jdbc:mysql://localhost:3306/listerizer` | `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DB` env vars |
+| `spring.datasource.username` | `listerizer` | `MYSQL_USER` env var |
+| `spring.datasource.password` | *(none)* | `MYSQL_PASSWORD` env var |
+
+### Testing
+
+- Unit tests: `src/test/` — pure JUnit 5, no Spring context.
+- Integration tests: `src/integrationTest/` — full Spring Boot context with a real MySQL instance via Testcontainers (`MySQLContainer`). Requires Docker. Integration tests run after unit tests and use the `test` Spring profile.
 
 ## Development Notes
 
 - **Loading the extension locally**: In Chrome, go to `chrome://extensions`, enable Developer Mode, and click "Load unpacked" pointing to the `extension/` directory.
-- **Running the GAS script**: Deploy `listerizer.gs` in the [Google Apps Script editor](https://script.google.com), set the required script properties, add the `showdown` library, then run `runListerizer()` manually or via a time-based trigger.
+- **Running the GAS script**: Deploy `appscript/listerizer.gs` in the [Google Apps Script editor](https://script.google.com), set the required script properties, add the `showdown` library, then run `runListerizer()` manually or via a time-based trigger.
 - The Chrome extension and GAS script have no build step and no test suite — they are plain source files used directly.
