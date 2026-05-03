@@ -128,7 +128,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     for (const item of readingListData) {
       const payload = {
         url: item.url,
-        create_time: item.creationTime
+        createTime: item.creationTime
       };
 
       try {

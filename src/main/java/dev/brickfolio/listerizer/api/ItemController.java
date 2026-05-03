@@ -41,6 +41,6 @@ public class ItemController {
     }
 
     private ItemResponse toResponse(Item item) {
-        return new ItemResponse(item.id(), item.url(), item.createTime());
+        return new ItemResponse(item.id(), item.url(), item.createTime(), item.title(), item.hasBeenRead());
     }
 }

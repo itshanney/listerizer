@@ -28,26 +28,39 @@ import static org.assertj.core.api.Assertions.assertThat;
  * -----------------
  * Covered:
  *   POST /items
- *     - Happy path: 201 Created with id, url, create_time (epoch integer) in response body
- *     - Duplicate URL: 200 OK returning the original record (original create_time, same id)
- *     - create_time as string: 400 (Jackson cannot deserialize string as long)
- *     - Negative epoch: 400
- *     - Missing create_time field: 400 (null-checked in ItemService)
- *     - Missing url field: 400
- *     - Invalid url (no scheme): 400
+ *     - Happy path: 201 with id, url, createTime, title, hasBeenRead in response
+ *     - title and hasBeenRead stored and returned correctly when provided
+ *     - Missing createTime: server assigns current epoch, returns 201
+ *     - Missing title: stored and returned as null
+ *     - Missing hasBeenRead: defaults to false
+ *     - createTime as string: 400
+ *     - Negative createTime: 400
+ *     - Missing url: 400
+ *     - Null url: 400
+ *     - Blank url: 400
+ *     - url without scheme: 400
  *     - Malformed JSON: 400
  *     - Empty body: 400
  *     - Empty JSON object: 400
+ *     - 400 error body contains error and message fields
+ *     - Duplicate URL, no upsert fields: 200, original record unchanged
+ *     - Duplicate URL, hasBeenRead false→true: 200, hasBeenRead updated
+ *     - Duplicate URL, hasBeenRead not downgraded true→false: 200, hasBeenRead unchanged
+ *     - Duplicate URL, title fill-blank: 200, title updated when stored title is null
+ *     - Duplicate URL, title not overwritten when already set: 200, title unchanged
+ *     - Duplicate URL, createTime and id not overwritten
  *
  *   GET /items
  *     - Empty store: 200 with []
  *     - Populated store: 200 with array in insertion order
- *     - Response schema: each item has id (long), url (string), create_time (epoch integer)
- *     - Content-Type of response is application/json
+ *     - Response schema: each item has id, url, createTime (epoch integer), title, hasBeenRead
+ *     - title is null for items stored without a title
+ *     - hasBeenRead is false for items stored without hasBeenRead
+ *     - Content-Type is application/json
  *
  * Not covered:
- *   - Concurrent requests (would require a thread-pool test harness)
- *   - Very large payloads
+ *   - Concurrent upsert (race condition is benign by design; requires thread pool harness)
+ *   - Payloads at column size limits (VARCHAR 2048 / 1024)
  */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -67,7 +80,8 @@ class ItemApiIntegrationTest {
         registry.add("spring.datasource.password", mysql::getPassword);
     }
 
-    private static final long CREATE_TIME = 1744367400L; // 2026-04-11T10:30:00Z
+    private static final long   CREATE_TIME = 1744367400L; // 2026-04-11T10:30:00Z
+    private static final String EXAMPLE_URL = "https://example.com";
 
     @LocalServerPort
     private int port;
@@ -87,13 +101,13 @@ class ItemApiIntegrationTest {
     }
 
     // -------------------------------------------------------------------------
-    // POST /items — happy path
+    // POST /items — happy path: new item
     // -------------------------------------------------------------------------
 
     @Test
     void post_new_item_returns_201_created() throws Exception {
         HttpResponse<String> response = post("""
-                {"url": "https://example.com", "create_time": 1744367400}
+                {"url": "https://example.com", "createTime": 1744367400}
                 """);
 
         assertThat(response.statusCode()).isEqualTo(201);
@@ -102,46 +116,186 @@ class ItemApiIntegrationTest {
     @Test
     void post_new_item_response_body_contains_id_url_and_create_time() throws Exception {
         HttpResponse<String> response = post("""
-                {"url": "https://example.com", "create_time": 1744367400}
+                {"url": "https://example.com", "createTime": 1744367400}
                 """);
 
         JsonNode body = objectMapper.readTree(response.body());
         Assertions.assertThat(body.get("id").asLong()).isPositive();
         Assertions.assertThat(body.get("url").asText()).isEqualTo("https://example.com");
-        Assertions.assertThat(body.get("create_time").asLong()).isEqualTo(CREATE_TIME);
+        Assertions.assertThat(body.get("createTime").asLong()).isEqualTo(CREATE_TIME);
+    }
+
+    @Test
+    void post_new_item_with_title_and_has_been_read_stores_and_returns_both() throws Exception {
+        HttpResponse<String> response = post("""
+                {"url": "https://example.com", "createTime": 1744367400, "title": "Test Article", "hasBeenRead": true}
+                """);
+
+        assertThat(response.statusCode()).isEqualTo(201);
+        JsonNode body = objectMapper.readTree(response.body());
+        Assertions.assertThat(body.get("title").asText()).isEqualTo("Test Article");
+        Assertions.assertThat(body.get("hasBeenRead").asBoolean()).isTrue();
+    }
+
+    @Test
+    void post_new_item_without_title_returns_null_title() throws Exception {
+        HttpResponse<String> response = post("""
+                {"url": "https://example.com", "createTime": 1744367400}
+                """);
+
+        JsonNode body = objectMapper.readTree(response.body());
+        Assertions.assertThat(body.get("title").isNull()).isTrue();
+    }
+
+    @Test
+    void post_new_item_without_has_been_read_defaults_to_false() throws Exception {
+        HttpResponse<String> response = post("""
+                {"url": "https://example.com", "createTime": 1744367400}
+                """);
+
+        JsonNode body = objectMapper.readTree(response.body());
+        Assertions.assertThat(body.get("hasBeenRead").asBoolean()).isFalse();
     }
 
     // -------------------------------------------------------------------------
-    // POST /items — duplicate URL (idempotency)
+    // POST /items — createTime server default
+    // -------------------------------------------------------------------------
+
+    @Test
+    void post_without_create_time_returns_201_with_server_assigned_epoch() throws Exception {
+        long before = System.currentTimeMillis() / 1000;
+        HttpResponse<String> response = post("""
+                {"url": "https://example.com"}
+                """);
+        long after = System.currentTimeMillis() / 1000;
+
+        assertThat(response.statusCode()).isEqualTo(201);
+        JsonNode body = objectMapper.readTree(response.body());
+        long storedCreateTime = body.get("createTime").asLong();
+        Assertions.assertThat(storedCreateTime).isBetween(before, after);
+    }
+
+    // -------------------------------------------------------------------------
+    // POST /items — duplicate URL upsert
     // -------------------------------------------------------------------------
 
     @Test
     void post_duplicate_url_returns_200_ok() throws Exception {
         post("""
-                {"url": "https://example.com", "create_time": 1744367400}
+                {"url": "https://example.com", "createTime": 1744367400}
                 """);
 
         HttpResponse<String> duplicate = post("""
-                {"url": "https://example.com", "create_time": 2000000000}
+                {"url": "https://example.com", "createTime": 2000000000}
                 """);
 
         assertThat(duplicate.statusCode()).isEqualTo(200);
     }
 
     @Test
-    void post_duplicate_url_returns_original_record_not_the_new_values() throws Exception {
+    void post_duplicate_url_does_not_overwrite_create_time_or_id() throws Exception {
         HttpResponse<String> first = post("""
-                {"url": "https://example.com", "create_time": 1744367400}
+                {"url": "https://example.com", "createTime": 1744367400}
                 """);
         HttpResponse<String> second = post("""
-                {"url": "https://example.com", "create_time": 2000000000}
+                {"url": "https://example.com", "createTime": 2000000000}
                 """);
 
         JsonNode firstBody  = objectMapper.readTree(first.body());
         JsonNode secondBody = objectMapper.readTree(second.body());
 
         Assertions.assertThat(secondBody.get("id").asLong()).isEqualTo(firstBody.get("id").asLong());
-        Assertions.assertThat(secondBody.get("create_time").asLong()).isEqualTo(CREATE_TIME);
+        Assertions.assertThat(secondBody.get("createTime").asLong()).isEqualTo(CREATE_TIME);
+    }
+
+    @Test
+    void post_duplicate_url_upgrades_has_been_read_from_false_to_true() throws Exception {
+        post("""
+                {"url": "https://example.com", "createTime": 1744367400, "hasBeenRead": false}
+                """);
+
+        HttpResponse<String> second = post("""
+                {"url": "https://example.com", "createTime": 1744367400, "hasBeenRead": true}
+                """);
+
+        JsonNode body = objectMapper.readTree(second.body());
+        Assertions.assertThat(body.get("hasBeenRead").asBoolean()).isTrue();
+    }
+
+    @Test
+    void post_duplicate_url_does_not_downgrade_has_been_read_from_true_to_false() throws Exception {
+        post("""
+                {"url": "https://example.com", "createTime": 1744367400, "hasBeenRead": true}
+                """);
+
+        HttpResponse<String> second = post("""
+                {"url": "https://example.com", "createTime": 1744367400, "hasBeenRead": false}
+                """);
+
+        JsonNode body = objectMapper.readTree(second.body());
+        Assertions.assertThat(body.get("hasBeenRead").asBoolean()).isTrue();
+    }
+
+    @Test
+    void post_duplicate_url_fills_blank_title_when_stored_title_is_null() throws Exception {
+        post("""
+                {"url": "https://example.com", "createTime": 1744367400}
+                """);
+
+        HttpResponse<String> second = post("""
+                {"url": "https://example.com", "createTime": 1744367400, "title": "New Title"}
+                """);
+
+        JsonNode body = objectMapper.readTree(second.body());
+        Assertions.assertThat(body.get("title").asText()).isEqualTo("New Title");
+    }
+
+    @Test
+    void post_duplicate_url_does_not_overwrite_existing_title() throws Exception {
+        post("""
+                {"url": "https://example.com", "createTime": 1744367400, "title": "Original Title"}
+                """);
+
+        HttpResponse<String> second = post("""
+                {"url": "https://example.com", "createTime": 1744367400, "title": "New Title"}
+                """);
+
+        JsonNode body = objectMapper.readTree(second.body());
+        Assertions.assertThat(body.get("title").asText()).isEqualTo("Original Title");
+    }
+
+    @Test
+    void post_duplicate_url_response_reflects_post_upsert_state() throws Exception {
+        post("""
+                {"url": "https://example.com", "createTime": 1744367400, "hasBeenRead": false}
+                """);
+
+        HttpResponse<String> second = post("""
+                {"url": "https://example.com", "createTime": 1744367400, "hasBeenRead": true, "title": "Added Title"}
+                """);
+
+        JsonNode body = objectMapper.readTree(second.body());
+        Assertions.assertThat(body.get("hasBeenRead").asBoolean()).isTrue();
+        Assertions.assertThat(body.get("title").asText()).isEqualTo("Added Title");
+    }
+
+    @Test
+    void post_duplicate_url_is_idempotent_when_nothing_changes() throws Exception {
+        post("""
+                {"url": "https://example.com", "createTime": 1744367400, "hasBeenRead": true, "title": "Title"}
+                """);
+
+        HttpResponse<String> second = post("""
+                {"url": "https://example.com", "createTime": 1744367400, "hasBeenRead": false}
+                """);
+        HttpResponse<String> third = post("""
+                {"url": "https://example.com", "createTime": 1744367400, "hasBeenRead": false}
+                """);
+
+        JsonNode secondBody = objectMapper.readTree(second.body());
+        JsonNode thirdBody  = objectMapper.readTree(third.body());
+        Assertions.assertThat(thirdBody.get("hasBeenRead").asBoolean()).isEqualTo(secondBody.get("hasBeenRead").asBoolean());
+        Assertions.assertThat(thirdBody.get("title").asText()).isEqualTo(secondBody.get("title").asText());
     }
 
     // -------------------------------------------------------------------------
@@ -151,7 +305,7 @@ class ItemApiIntegrationTest {
     @Test
     void post_missing_url_field_returns_400() throws Exception {
         HttpResponse<String> response = post("""
-                {"create_time": 1744367400}
+                {"createTime": 1744367400}
                 """);
 
         assertThat(response.statusCode()).isEqualTo(400);
@@ -160,7 +314,7 @@ class ItemApiIntegrationTest {
     @Test
     void post_null_url_returns_400() throws Exception {
         HttpResponse<String> response = post("""
-                {"url": null, "create_time": 1744367400}
+                {"url": null, "createTime": 1744367400}
                 """);
 
         assertThat(response.statusCode()).isEqualTo(400);
@@ -169,7 +323,7 @@ class ItemApiIntegrationTest {
     @Test
     void post_blank_url_returns_400() throws Exception {
         HttpResponse<String> response = post("""
-                {"url": "", "create_time": 1744367400}
+                {"url": "", "createTime": 1744367400}
                 """);
 
         assertThat(response.statusCode()).isEqualTo(400);
@@ -178,7 +332,7 @@ class ItemApiIntegrationTest {
     @Test
     void post_url_without_scheme_returns_400() throws Exception {
         HttpResponse<String> response = post("""
-                {"url": "example.com/article", "create_time": 1744367400}
+                {"url": "example.com/article", "createTime": 1744367400}
                 """);
 
         assertThat(response.statusCode()).isEqualTo(400);
@@ -187,7 +341,7 @@ class ItemApiIntegrationTest {
     @Test
     void post_create_time_as_string_returns_400() throws Exception {
         HttpResponse<String> response = post("""
-                {"url": "https://example.com", "create_time": "not-a-number"}
+                {"url": "https://example.com", "createTime": "not-a-number"}
                 """);
 
         assertThat(response.statusCode()).isEqualTo(400);
@@ -196,16 +350,7 @@ class ItemApiIntegrationTest {
     @Test
     void post_negative_epoch_returns_400() throws Exception {
         HttpResponse<String> response = post("""
-                {"url": "https://example.com", "create_time": -1}
-                """);
-
-        assertThat(response.statusCode()).isEqualTo(400);
-    }
-
-    @Test
-    void post_missing_create_time_returns_400() throws Exception {
-        HttpResponse<String> response = post("""
-                {"url": "https://example.com"}
+                {"url": "https://example.com", "createTime": -1}
                 """);
 
         assertThat(response.statusCode()).isEqualTo(400);
@@ -214,7 +359,7 @@ class ItemApiIntegrationTest {
     @Test
     void post_400_error_body_contains_error_and_message_fields() throws Exception {
         HttpResponse<String> response = post("""
-                {"url": "not-a-url", "create_time": 1744367400}
+                {"url": "not-a-url", "createTime": 1744367400}
                 """);
 
         JsonNode body = objectMapper.readTree(response.body());
@@ -262,10 +407,10 @@ class ItemApiIntegrationTest {
     @Test
     void get_returns_all_stored_items() throws Exception {
         post("""
-                {"url": "https://first.com",  "create_time": 1735689600}
+                {"url": "https://first.com",  "createTime": 1735689600}
                 """);
         post("""
-                {"url": "https://second.com", "create_time": 1738368000}
+                {"url": "https://second.com", "createTime": 1738368000}
                 """);
 
         JsonNode body = objectMapper.readTree(get("/items").body());
@@ -276,13 +421,13 @@ class ItemApiIntegrationTest {
     @Test
     void get_returns_items_in_insertion_order() throws Exception {
         post("""
-                {"url": "https://first.com",  "create_time": 1735689600}
+                {"url": "https://first.com",  "createTime": 1735689600}
                 """);
         post("""
-                {"url": "https://second.com", "create_time": 1738368000}
+                {"url": "https://second.com", "createTime": 1738368000}
                 """);
         post("""
-                {"url": "https://third.com",  "create_time": 1740787200}
+                {"url": "https://third.com",  "createTime": 1740787200}
                 """);
 
         JsonNode body = objectMapper.readTree(get("/items").body());
@@ -293,26 +438,48 @@ class ItemApiIntegrationTest {
     }
 
     @Test
-    void get_response_items_have_id_url_and_create_time_fields() throws Exception {
+    void get_response_items_have_expected_fields() throws Exception {
         post("""
-                {"url": "https://example.com", "create_time": 1744367400}
+                {"url": "https://example.com", "createTime": 1744367400, "title": "An Article", "hasBeenRead": true}
                 """);
 
         JsonNode item = objectMapper.readTree(get("/items").body()).get(0);
         Assertions.assertThat(item.has("id")).isTrue();
         Assertions.assertThat(item.has("url")).isTrue();
-        Assertions.assertThat(item.has("create_time")).isTrue();
+        Assertions.assertThat(item.has("createTime")).isTrue();
+        Assertions.assertThat(item.has("title")).isTrue();
+        Assertions.assertThat(item.has("hasBeenRead")).isTrue();
     }
 
     @Test
     void get_create_time_is_returned_as_epoch_integer() throws Exception {
         post("""
-                {"url": "https://example.com", "create_time": 1744367400}
+                {"url": "https://example.com", "createTime": 1744367400}
                 """);
 
         JsonNode item = objectMapper.readTree(get("/items").body()).get(0);
-        Assertions.assertThat(item.get("create_time").isNumber()).isTrue();
-        Assertions.assertThat(item.get("create_time").asLong()).isEqualTo(CREATE_TIME);
+        Assertions.assertThat(item.get("createTime").isNumber()).isTrue();
+        Assertions.assertThat(item.get("createTime").asLong()).isEqualTo(CREATE_TIME);
+    }
+
+    @Test
+    void get_returns_null_title_for_items_stored_without_title() throws Exception {
+        post("""
+                {"url": "https://example.com", "createTime": 1744367400}
+                """);
+
+        JsonNode item = objectMapper.readTree(get("/items").body()).get(0);
+        Assertions.assertThat(item.get("title").isNull()).isTrue();
+    }
+
+    @Test
+    void get_returns_false_has_been_read_for_items_stored_without_has_been_read() throws Exception {
+        post("""
+                {"url": "https://example.com", "createTime": 1744367400}
+                """);
+
+        JsonNode item = objectMapper.readTree(get("/items").body()).get(0);
+        Assertions.assertThat(item.get("hasBeenRead").asBoolean()).isFalse();
     }
 
     @Test

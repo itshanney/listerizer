@@ -25,13 +25,33 @@ public class ItemService {
     // and caught here. An outer transaction would defer the flush past this catch block.
     public InsertResult create(ItemRequest request) {
         validateRequest(request);
+        long resolvedCreateTime = request.createTime() != null
+                ? request.createTime()
+                : System.currentTimeMillis() / 1000;
         try {
-            Item saved = repository.save(new Item(request.url(), request.createTime()));
+            Item saved = repository.save(new Item(
+                    request.url(),
+                    resolvedCreateTime,
+                    request.title(),
+                    Boolean.TRUE.equals(request.hasBeenRead())));
             return new InsertResult(saved, true);
         } catch (DataIntegrityViolationException e) {
             Item existing = repository.findByUrl(request.url())
                     .orElseThrow(() -> new IllegalStateException(
                             "URL conflict but no existing row found: " + request.url(), e));
+            boolean needsUpdate = false;
+            if (Boolean.TRUE.equals(request.hasBeenRead()) && !existing.hasBeenRead()) {
+                existing.setHasBeenRead(true);
+                needsUpdate = true;
+            }
+            if (request.title() != null && !request.title().isBlank()
+                    && (existing.title() == null || existing.title().isBlank())) {
+                existing.setTitle(request.title());
+                needsUpdate = true;
+            }
+            if (needsUpdate) {
+                existing = repository.save(existing);
+            }
             return new InsertResult(existing, false);
         }
     }
@@ -55,11 +75,8 @@ public class ItemService {
         } catch (URISyntaxException e) {
             throw new ValidationException("url is required and must be a valid URL");
         }
-        if (request.createTime() == null) {
-            throw new ValidationException("create_time is required");
-        }
-        if (request.createTime() < 0) {
-            throw new ValidationException("create_time must be a non-negative epoch seconds integer");
+        if (request.createTime() != null && request.createTime() < 0) {
+            throw new ValidationException("createTime must be a non-negative epoch seconds integer");
         }
     }
 }

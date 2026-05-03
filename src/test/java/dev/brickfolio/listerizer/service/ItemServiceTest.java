@@ -25,12 +25,14 @@ import static org.mockito.Mockito.when;
  * -----------------
  * Covered:
  *   - URL validation: null, blank, whitespace-only, missing scheme, missing host, valid HTTP/HTTPS
- *   - create_time validation: null (missing field), negative epoch
+ *   - createTime validation: null (now valid — defaults to server time), negative epoch (still invalid)
  *   - Delegation: create() passes url and createTime to repository.save() unchanged
  *   - create() returns isNew=true on successful save, isNew=false on duplicate URL
  *   - list() delegates to repository.findAllByOrderByIdAsc() and returns results as-is
  *
  * Not covered:
+ *   - hasBeenRead ratchet logic, title fill-blank upsert — covered in integration tests
+ *   - createTime server-default value — covered in integration tests
  *   - IllegalStateException path (duplicate URL but row missing after conflict) — race condition
  */
 @ExtendWith(MockitoExtension.class)
@@ -49,7 +51,7 @@ class ItemServiceTest {
 
     @Test
     void create_throws_when_url_is_null() {
-        ItemRequest request = new ItemRequest(null, CREATE_TIME);
+        ItemRequest request = new ItemRequest(null, CREATE_TIME, null, null);
         assertThatThrownBy(() -> itemService.create(request))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("url is required");
@@ -57,7 +59,7 @@ class ItemServiceTest {
 
     @Test
     void create_throws_when_url_is_empty_string() {
-        ItemRequest request = new ItemRequest("", CREATE_TIME);
+        ItemRequest request = new ItemRequest("", CREATE_TIME, null, null);
         assertThatThrownBy(() -> itemService.create(request))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("url is required");
@@ -65,45 +67,49 @@ class ItemServiceTest {
 
     @Test
     void create_throws_when_url_is_whitespace_only() {
-        ItemRequest request = new ItemRequest("   ", CREATE_TIME);
+        ItemRequest request = new ItemRequest("   ", CREATE_TIME, null, null);
         assertThatThrownBy(() -> itemService.create(request))
                 .isInstanceOf(ValidationException.class);
     }
 
     @Test
     void create_throws_when_url_has_no_scheme() {
-        ItemRequest request = new ItemRequest("example.com/article", CREATE_TIME);
+        ItemRequest request = new ItemRequest("example.com/article", CREATE_TIME, null, null);
         assertThatThrownBy(() -> itemService.create(request))
                 .isInstanceOf(ValidationException.class);
     }
 
     @Test
     void create_throws_when_url_has_scheme_but_no_host() {
-        ItemRequest request = new ItemRequest("nohost:", CREATE_TIME);
+        ItemRequest request = new ItemRequest("nohost:", CREATE_TIME, null, null);
         assertThatThrownBy(() -> itemService.create(request))
                 .isInstanceOf(ValidationException.class);
     }
 
     @Test
     void create_throws_on_syntactically_invalid_url() {
-        ItemRequest request = new ItemRequest("not a url at all", CREATE_TIME);
+        ItemRequest request = new ItemRequest("not a url at all", CREATE_TIME, null, null);
         assertThatThrownBy(() -> itemService.create(request))
                 .isInstanceOf(ValidationException.class);
     }
 
-    // --- create_time validation ---
+    // --- createTime validation ---
 
     @Test
-    void create_throws_when_create_time_is_null() {
-        ItemRequest request = new ItemRequest(VALID_URL, null);
-        assertThatThrownBy(() -> itemService.create(request))
-                .isInstanceOf(ValidationException.class)
-                .hasMessageContaining("create_time is required");
+    void create_uses_server_time_when_create_time_is_null() {
+        ItemRequest request = new ItemRequest(VALID_URL, null, null, null);
+        long before = System.currentTimeMillis() / 1000;
+        when(repository.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        InsertResult result = itemService.create(request);
+
+        long after = System.currentTimeMillis() / 1000;
+        assertThat(result.item().createTime()).isBetween(before, after);
     }
 
     @Test
     void create_throws_when_create_time_is_negative() {
-        ItemRequest request = new ItemRequest(VALID_URL, -1L);
+        ItemRequest request = new ItemRequest(VALID_URL, -1L, null, null);
         assertThatThrownBy(() -> itemService.create(request))
                 .isInstanceOf(ValidationException.class);
     }
@@ -112,8 +118,8 @@ class ItemServiceTest {
 
     @Test
     void create_accepts_http_url() {
-        ItemRequest request = new ItemRequest("http://example.com", CREATE_TIME);
-        when(repository.save(any(Item.class))).thenReturn(new Item("http://example.com", CREATE_TIME));
+        ItemRequest request = new ItemRequest("http://example.com", CREATE_TIME, null, null);
+        when(repository.save(any(Item.class))).thenReturn(new Item("http://example.com", CREATE_TIME, null, false));
 
         InsertResult result = itemService.create(request);
 
@@ -125,8 +131,8 @@ class ItemServiceTest {
     @Test
     void create_accepts_https_url_with_path_and_query() {
         String url = "https://example.com/path?q=1&page=2";
-        ItemRequest request = new ItemRequest(url, CREATE_TIME);
-        when(repository.save(any(Item.class))).thenReturn(new Item(url, CREATE_TIME));
+        ItemRequest request = new ItemRequest(url, CREATE_TIME, null, null);
+        when(repository.save(any(Item.class))).thenReturn(new Item(url, CREATE_TIME, null, false));
 
         InsertResult result = itemService.create(request);
 
@@ -136,8 +142,8 @@ class ItemServiceTest {
 
     @Test
     void create_accepts_epoch_zero() {
-        ItemRequest request = new ItemRequest(VALID_URL, 0L);
-        when(repository.save(any(Item.class))).thenReturn(new Item(VALID_URL, 0L));
+        ItemRequest request = new ItemRequest(VALID_URL, 0L, null, null);
+        when(repository.save(any(Item.class))).thenReturn(new Item(VALID_URL, 0L, null, false));
 
         InsertResult result = itemService.create(request);
 
@@ -147,8 +153,8 @@ class ItemServiceTest {
 
     @Test
     void create_delegates_url_and_create_time_to_repository_unchanged() {
-        ItemRequest request = new ItemRequest(VALID_URL, CREATE_TIME);
-        when(repository.save(any(Item.class))).thenReturn(new Item(VALID_URL, CREATE_TIME));
+        ItemRequest request = new ItemRequest(VALID_URL, CREATE_TIME, null, null);
+        when(repository.save(any(Item.class))).thenReturn(new Item(VALID_URL, CREATE_TIME, null, false));
 
         itemService.create(request);
 
@@ -158,8 +164,8 @@ class ItemServiceTest {
 
     @Test
     void create_returns_is_new_false_when_url_already_exists() {
-        ItemRequest request = new ItemRequest(VALID_URL, CREATE_TIME);
-        Item existing = new Item(VALID_URL, CREATE_TIME);
+        ItemRequest request = new ItemRequest(VALID_URL, CREATE_TIME, null, null);
+        Item existing = new Item(VALID_URL, CREATE_TIME, null, false);
         when(repository.save(any(Item.class))).thenThrow(DataIntegrityViolationException.class);
         when(repository.findByUrl(VALID_URL)).thenReturn(Optional.of(existing));
 
@@ -181,8 +187,8 @@ class ItemServiceTest {
     @Test
     void list_returns_all_items_from_repository() {
         List<Item> items = List.of(
-                new Item("https://first.com",  1735689600L),
-                new Item("https://second.com", 1738368000L)
+                new Item("https://first.com",  1735689600L, null, false),
+                new Item("https://second.com", 1738368000L, null, false)
         );
         when(repository.findAllByOrderByIdAsc()).thenReturn(items);
 

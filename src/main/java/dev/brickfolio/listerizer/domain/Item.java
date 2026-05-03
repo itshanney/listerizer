@@ -25,16 +25,29 @@ public class Item {
     @Column(name = "create_time", nullable = false)
     private long createTime;
 
+    @Column(name = "title", length = 1024)
+    private String title;
+
+    @Column(name = "has_been_read", nullable = false)
+    private boolean hasBeenRead;
+
     public Item() {
         super();
     }
 
-    public Item(String url, long createTime) {
+    public Item(String url, long createTime, String title, boolean hasBeenRead) {
         this.url = url;
         this.createTime = createTime;
+        this.title = title;
+        this.hasBeenRead = hasBeenRead;
     }
 
-    public long id()         { return id; }
-    public String url()      { return url; }
-    public long createTime() { return createTime; }
+    public long id()             { return id; }
+    public String url()          { return url; }
+    public long createTime()     { return createTime; }
+    public String title()        { return title; }
+    public boolean hasBeenRead() { return hasBeenRead; }
+
+    public void setTitle(String title)              { this.title = title; }
+    public void setHasBeenRead(boolean hasBeenRead) { this.hasBeenRead = hasBeenRead; }
 }
