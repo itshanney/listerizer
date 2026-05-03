@@ -3,6 +3,7 @@ package dev.brickfolio.listerizer.api;
 import dev.brickfolio.listerizer.domain.Item;
 import dev.brickfolio.listerizer.service.InsertResult;
 import dev.brickfolio.listerizer.service.ItemService;
+import dev.brickfolio.listerizer.ErrorResponse;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
@@ -38,6 +39,17 @@ public class ItemController {
         return itemService.list().stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    @GET
+    @Path("/unread/random")
+    public Response getRandomUnread() {
+        return itemService.findRandomUnread()
+                .map(item -> Response.ok(toResponse(item)).build())
+                .orElse(Response.status(Response.Status.NOT_FOUND)
+                        .entity(new ErrorResponse("not_found", "No unread items available."))
+                        .type(MediaType.APPLICATION_JSON)
+                        .build());
     }
 
     private ItemResponse toResponse(Item item) {

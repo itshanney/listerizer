@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class ItemService {
@@ -58,6 +59,10 @@ public class ItemService {
 
     public List<Item> list() {
         return repository.findAllByOrderByIdAsc();
+    }
+
+    public Optional<Item> findRandomUnread() {
+        return repository.findRandomUnread();
     }
 
     private void validateRequest(ItemRequest request) {

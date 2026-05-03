@@ -128,6 +128,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     for (const item of readingListData) {
       const payload = {
         url: item.url,
+        title: item.title,
+        hasBeenRead: item.hasBeenRead,
         createTime: item.creationTime
       };
 

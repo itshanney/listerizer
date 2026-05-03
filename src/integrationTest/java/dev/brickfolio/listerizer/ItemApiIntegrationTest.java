@@ -58,9 +58,22 @@ import static org.assertj.core.api.Assertions.assertThat;
  *     - hasBeenRead is false for items stored without hasBeenRead
  *     - Content-Type is application/json
  *
+ *   GET /items/unread/random
+ *     - 200 with correct schema when an unread item exists
+ *     - Returned item always has hasBeenRead=false
+ *     - Correct Content-Type header
+ *     - No side effects: item remains unread after the call
+ *     - Only unread items are eligible: never returns a read item from a mixed store
+ *     - Single unread item: returns it
+ *     - Randomness: 10 calls on 10 unread items returns at least 2 distinct URLs
+ *     - 404 with error body when store is empty
+ *     - 404 with error body when all items are read
+ *     - POST to the endpoint returns 405
+ *
  * Not covered:
  *   - Concurrent upsert (race condition is benign by design; requires thread pool harness)
  *   - Payloads at column size limits (VARCHAR 2048 / 1024)
+ *   - Uniform distribution verification (requires statistical test with thousands of calls)
  */
 @Testcontainers
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -486,6 +499,148 @@ class ItemApiIntegrationTest {
     void get_response_content_type_is_application_json() throws Exception {
         String contentType = get("/items").headers().firstValue("Content-Type").orElse("");
         assertThat(contentType).contains("application/json");
+    }
+
+    // -------------------------------------------------------------------------
+    // GET /items/unread/random
+    // -------------------------------------------------------------------------
+
+    @Test
+    void get_random_unread_returns_200_when_unread_item_exists() throws Exception {
+        post("""
+                {"url": "https://example.com", "createTime": 1744367400, "hasBeenRead": false}
+                """);
+
+        assertThat(get("/items/unread/random").statusCode()).isEqualTo(200);
+    }
+
+    @Test
+    void get_random_unread_response_body_contains_expected_fields() throws Exception {
+        post("""
+                {"url": "https://example.com", "createTime": 1744367400, "title": "An Article", "hasBeenRead": false}
+                """);
+
+        JsonNode body = objectMapper.readTree(get("/items/unread/random").body());
+        Assertions.assertThat(body.has("id")).isTrue();
+        Assertions.assertThat(body.has("url")).isTrue();
+        Assertions.assertThat(body.has("createTime")).isTrue();
+        Assertions.assertThat(body.has("title")).isTrue();
+        Assertions.assertThat(body.has("hasBeenRead")).isTrue();
+    }
+
+    @Test
+    void get_random_unread_always_returns_item_with_has_been_read_false() throws Exception {
+        post("""
+                {"url": "https://example.com", "createTime": 1744367400, "hasBeenRead": false}
+                """);
+
+        JsonNode body = objectMapper.readTree(get("/items/unread/random").body());
+        Assertions.assertThat(body.get("hasBeenRead").asBoolean()).isFalse();
+    }
+
+    @Test
+    void get_random_unread_response_content_type_is_application_json() throws Exception {
+        post("""
+                {"url": "https://example.com", "createTime": 1744367400}
+                """);
+
+        String contentType = get("/items/unread/random").headers().firstValue("Content-Type").orElse("");
+        assertThat(contentType).contains("application/json");
+    }
+
+    @Test
+    void get_random_unread_does_not_mark_item_as_read() throws Exception {
+        post("""
+                {"url": "https://example.com", "createTime": 1744367400, "hasBeenRead": false}
+                """);
+
+        get("/items/unread/random");
+
+        JsonNode items = objectMapper.readTree(get("/items").body());
+        Assertions.assertThat(items.get(0).get("hasBeenRead").asBoolean()).isFalse();
+    }
+
+    @Test
+    void get_random_unread_never_returns_a_read_item() throws Exception {
+        post("""
+                {"url": "https://read.com", "createTime": 1744367400, "hasBeenRead": true}
+                """);
+        post("""
+                {"url": "https://unread.com", "createTime": 1744367400, "hasBeenRead": false}
+                """);
+
+        for (int i = 0; i < 10; i++) {
+            JsonNode body = objectMapper.readTree(get("/items/unread/random").body());
+            Assertions.assertThat(body.get("url").asText()).isEqualTo("https://unread.com");
+            Assertions.assertThat(body.get("hasBeenRead").asBoolean()).isFalse();
+        }
+    }
+
+    @Test
+    void get_random_unread_returns_the_only_unread_item_when_exactly_one_exists() throws Exception {
+        post("""
+                {"url": "https://read-1.com",  "createTime": 1744367400, "hasBeenRead": true}
+                """);
+        post("""
+                {"url": "https://read-2.com",  "createTime": 1744367400, "hasBeenRead": true}
+                """);
+        post("""
+                {"url": "https://unread.com",  "createTime": 1744367400, "hasBeenRead": false}
+                """);
+
+        JsonNode body = objectMapper.readTree(get("/items/unread/random").body());
+        Assertions.assertThat(body.get("url").asText()).isEqualTo("https://unread.com");
+    }
+
+    @Test
+    void get_random_unread_returns_varied_results_across_multiple_calls() throws Exception {
+        // Insert 10 unread items. With 10 calls, all returning the same item has probability (1/10)^9.
+        for (int i = 1; i <= 10; i++) {
+            post(String.format("""
+                    {"url": "https://article-%d.com", "createTime": 1744367400}
+                    """, i));
+        }
+
+        java.util.Set<String> distinctUrls = new java.util.HashSet<>();
+        for (int i = 0; i < 10; i++) {
+            JsonNode body = objectMapper.readTree(get("/items/unread/random").body());
+            distinctUrls.add(body.get("url").asText());
+        }
+
+        Assertions.assertThat(distinctUrls.size()).isGreaterThanOrEqualTo(2);
+    }
+
+    @Test
+    void get_random_unread_returns_404_when_store_is_empty() throws Exception {
+        assertThat(get("/items/unread/random").statusCode()).isEqualTo(404);
+    }
+
+    @Test
+    void get_random_unread_returns_404_when_all_items_are_read() throws Exception {
+        post("""
+                {"url": "https://example.com", "createTime": 1744367400, "hasBeenRead": true}
+                """);
+
+        assertThat(get("/items/unread/random").statusCode()).isEqualTo(404);
+    }
+
+    @Test
+    void get_random_unread_404_body_contains_not_found_error_and_message() throws Exception {
+        JsonNode body = objectMapper.readTree(get("/items/unread/random").body());
+        Assertions.assertThat(body.get("error").asText()).isEqualTo("not_found");
+        Assertions.assertThat(body.has("message")).isTrue();
+    }
+
+    @Test
+    void post_to_random_unread_path_returns_405_method_not_allowed() throws Exception {
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url("/items/unread/random")))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{}"))
+                .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        assertThat(response.statusCode()).isEqualTo(405);
     }
 
     // -------------------------------------------------------------------------

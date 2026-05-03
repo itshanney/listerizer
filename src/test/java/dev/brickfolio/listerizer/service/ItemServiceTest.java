@@ -29,6 +29,7 @@ import static org.mockito.Mockito.when;
  *   - Delegation: create() passes url and createTime to repository.save() unchanged
  *   - create() returns isNew=true on successful save, isNew=false on duplicate URL
  *   - list() delegates to repository.findAllByOrderByIdAsc() and returns results as-is
+ *   - findRandomUnread() delegates to repository and returns its Optional as-is
  *
  * Not covered:
  *   - hasBeenRead ratchet logic, title fill-blank upsert — covered in integration tests
@@ -173,6 +174,27 @@ class ItemServiceTest {
 
         assertThat(result.isNew()).isFalse();
         assertThat(result.item().url()).isEqualTo(VALID_URL);
+    }
+
+    // --- findRandomUnread ---
+
+    @Test
+    void find_random_unread_returns_empty_when_repository_has_no_unread_items() {
+        when(repository.findRandomUnread()).thenReturn(Optional.empty());
+
+        assertThat(itemService.findRandomUnread()).isEmpty();
+    }
+
+    @Test
+    void find_random_unread_returns_item_from_repository() {
+        Item unread = new Item(VALID_URL, CREATE_TIME, "An Article", false);
+        when(repository.findRandomUnread()).thenReturn(Optional.of(unread));
+
+        Optional<Item> result = itemService.findRandomUnread();
+
+        assertThat(result).isPresent();
+        assertThat(result.get().url()).isEqualTo(VALID_URL);
+        assertThat(result.get().hasBeenRead()).isFalse();
     }
 
     // --- list ---
