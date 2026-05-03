@@ -1,25 +1,14 @@
 function getNextUnreadArticle() {
-  // Open Sheets file
-  const sheet = SpreadsheetApp.openById('1SqGoYhG9WKWbc096SBD_73J0gWusyQUM02SKkJD2jus').getActiveSheet();
-  const data  = sheet.getDataRange().getValues();
+  const apiUrl   = PropertiesService.getScriptProperties().getProperty('LISTERIZER_API_URL');
+  const response = UrlFetchApp.fetch(apiUrl.concat("/unread/random"), {
+      method: 'get',
+      contentType: 'application/json',
+      muteHttpExceptions: true
+    });
 
-  var row = 1;
-  do {
-    Logger.log("Checking row: " + row);
-    const title = data[row][0];
-    const url   = data[row][1];
-    const hasBeenRead = data[row][2];
-
-    if(hasBeenRead === false) {
-      // Mark hasBeenRead as true
-      sheet.getRange(row+1, 3).setValue(true);
-
-      return {
-        title: title,
-        url: url
-      }
-    }
-  } while (row++ < data.length);
+  const jsonObject = JSON.parse(response.getContentText());
+  Logger.log("Next Unread Article: " + JSON.stringify(jsonObject));
+  return jsonObject;
 }
 
 function runListerizer() {
