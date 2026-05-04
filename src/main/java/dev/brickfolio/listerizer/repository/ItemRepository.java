@@ -15,6 +15,8 @@ public interface ItemRepository extends CrudRepository<Item, Long> {
 
     List<Item> findAllByOrderByIdAsc();
 
+    List<Item> findAllByHasBeenReadFalseOrderByIdAsc();
+
     @Query(value = "SELECT * FROM items WHERE has_been_read = 0 ORDER BY RAND() LIMIT 1", nativeQuery = true)
     Optional<Item> findRandomUnread();
 }

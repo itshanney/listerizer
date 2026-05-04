@@ -8,9 +8,10 @@ Listerizer is a three-part system for managing a Chrome Reading List and generat
 
 1. **Chrome Extension** (`extension/`) — Manifest V3 extension that exports the Chrome reading list to JSON or CSV, and syncs items to the Listerizer REST API.
 2. **Google Apps Script** (`appscript/listerizer.gs`) — Active pipeline. Reads unread items from a Google Sheets spreadsheet, fetches page content, summarizes via the Gemini API, marks the item as read in the Sheet, and emails the result.
-3. **Spring Boot REST API** (repo root) — The source of truth for reading list items. Accepts upserts from the Chrome extension and will receive write-backs from the GAS script.
+3. **Spring Boot REST API** (repo root) — The source of truth for reading list items. Accepts upserts from the Chrome extension and exposes unread-item endpoints for the GAS pipeline.
 
 > `extension/listerizer.gs` is a legacy script that reads from a Google Drive JSON file. It is superseded by `appscript/listerizer.gs` and should not be modified.
+> `appscript/migrate_to_api.gs` is a one-time migration script that pushes every row from the Google Sheet into the REST API. Safe to re-run (the API upserts on URL). Requires the `LISTERIZER_API_URL` script property.
 
 ## Architecture
 
@@ -53,10 +54,10 @@ gradle integrationTest      # run integration tests (requires Docker for Testcon
 **Request path:** HTTP → Jersey servlet → `ItemController` (JAX-RS) → `ItemService` → `ItemRepository` (Spring Data JPA) → MySQL
 
 - `JerseyConfig` — registers all JAX-RS resources and exception mappers with Jersey's `ResourceConfig`.
-- `ItemController` (`api`) — `POST /items` (upsert) and `GET /items` (list). Returns `201 Created` for new URLs, `200 OK` for duplicates.
-- `ItemService` (`service`) — validates the URL and `create_time`, delegates to the repository. On a duplicate-URL `DataIntegrityViolationException`, fetches the existing row and returns it.
-- `ItemRepository` (`repository`) — extends `CrudRepository<Item, Long>`. `save()` issues INSERT for new entities; `findByUrl()` is used for conflict resolution.
-- Flyway manages schema migrations. Migration files live in `src/main/resources/db/migration/` and follow the `V{n}__{description}.sql` naming convention. The current schema is defined in `V1__create_items_table.sql`.
+- `ItemController` (`api`) — four endpoints: `POST /items` (upsert), `GET /items` (list all), `GET /items/unread` (list unread, always 200 — returns `[]` when none), `GET /items/unread/random` (single random unread, 200 or 404). Returns `201 Created` for new URLs, `200 OK` for duplicates/reads.
+- `ItemService` (`service`) — validates URL (required, must have scheme + host) and `createTime` (optional; defaults to server epoch if absent; must be ≥ 0 if provided). On a duplicate-URL `DataIntegrityViolationException`, fetches the existing row and applies selective upsert: `hasBeenRead` ratchets false→true only, title is filled in only if currently null/blank.
+- `ItemRepository` (`repository`) — extends `CrudRepository<Item, Long>`. Key methods: `save()` (INSERT or UPDATE), `findByUrl()` (conflict resolution), `findAllByOrderByIdAsc()` (full list), `findAllByHasBeenReadFalseOrderByIdAsc()` (unread list, Spring Data derived query), `findRandomUnread()` (native `ORDER BY RAND() LIMIT 1`).
+- Flyway manages schema migrations in `src/main/resources/db/migration/` (`V{n}__{description}.sql`). Current migrations: `V1__create_items_table.sql`, `V2__add_title_and_has_been_read.sql`.
 
 **Package structure:**
 
@@ -70,7 +71,7 @@ gradle integrationTest      # run integration tests (requires Docker for Testcon
 
 **Database:** MySQL 9. Connection configured via environment variables (see Configuration). Hikari connection pool, max size 5.
 
-**`create_time` handling:** stored and returned as a Unix epoch seconds integer (`long`). The JSON field is currently `create_time` (snake_case, via `@JsonProperty`). `ItemService` validates that the value is non-null and ≥ 0.
+**`createTime` handling:** stored and returned as a Unix epoch seconds integer (`long`). The JSON field is `createTime` (camelCase — no `@JsonProperty` annotation needed; Jackson uses the record field name by default). Optional on `POST /items`: if omitted or null, the server defaults to the current epoch second. If provided, must be ≥ 0.
 
 **Exception mappers:** `ValidationExceptionMapper` and `JacksonExceptionMapper` translate domain/deserialization errors into JSON `{"error": "invalid_request", "message": "..."}` responses.
 

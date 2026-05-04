@@ -42,6 +42,14 @@ public class ItemController {
     }
 
     @GET
+    @Path("/unread")
+    public List<ItemResponse> listUnread() {
+        return itemService.listUnread().stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @GET
     @Path("/unread/random")
     public Response getRandomUnread() {
         return itemService.findRandomUnread()

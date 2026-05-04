@@ -29,6 +29,7 @@ import static org.mockito.Mockito.when;
  *   - Delegation: create() passes url and createTime to repository.save() unchanged
  *   - create() returns isNew=true on successful save, isNew=false on duplicate URL
  *   - list() delegates to repository.findAllByOrderByIdAsc() and returns results as-is
+ *   - listUnread() delegates to repository.findAllByHasBeenReadFalseOrderByIdAsc() and returns results as-is
  *   - findRandomUnread() delegates to repository and returns its Optional as-is
  *
  * Not covered:
@@ -195,6 +196,35 @@ class ItemServiceTest {
         assertThat(result).isPresent();
         assertThat(result.get().url()).isEqualTo(VALID_URL);
         assertThat(result.get().hasBeenRead()).isFalse();
+    }
+
+    // --- listUnread ---
+
+    @Test
+    void list_unread_returns_empty_list_when_repository_has_no_unread_items() {
+        when(repository.findAllByHasBeenReadFalseOrderByIdAsc()).thenReturn(List.of());
+
+        assertThat(itemService.listUnread()).isEmpty();
+    }
+
+    @Test
+    void list_unread_returns_items_from_repository() {
+        List<Item> unreadItems = List.of(
+                new Item("https://first.com",  1735689600L, null, false),
+                new Item("https://second.com", 1738368000L, "An Article", false)
+        );
+        when(repository.findAllByHasBeenReadFalseOrderByIdAsc()).thenReturn(unreadItems);
+
+        assertThat(itemService.listUnread()).isEqualTo(unreadItems);
+    }
+
+    @Test
+    void list_unread_delegates_to_correct_repository_method() {
+        when(repository.findAllByHasBeenReadFalseOrderByIdAsc()).thenReturn(List.of());
+
+        itemService.listUnread();
+
+        verify(repository).findAllByHasBeenReadFalseOrderByIdAsc();
     }
 
     // --- list ---

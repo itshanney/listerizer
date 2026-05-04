@@ -61,6 +61,10 @@ public class ItemService {
         return repository.findAllByOrderByIdAsc();
     }
 
+    public List<Item> listUnread() {
+        return repository.findAllByHasBeenReadFalseOrderByIdAsc();
+    }
+
     public Optional<Item> findRandomUnread() {
         return repository.findRandomUnread();
     }
