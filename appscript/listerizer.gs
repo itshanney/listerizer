@@ -1,21 +1,20 @@
 function getNextUnreadArticle() {
   const apiUrl   = PropertiesService.getScriptProperties().getProperty('LISTERIZER_API_URL');
-  const response = UrlFetchApp.fetch(apiUrl.concat("/unread/random"), {
+  const response = UrlFetchApp.fetch(apiUrl.concat("/items/unread/random"), {
       method: 'get',
       contentType: 'application/json',
       muteHttpExceptions: true
     });
 
-  const jsonObject = JSON.parse(response.getContentText());
-  Logger.log("Next Unread Article: " + JSON.stringify(jsonObject));
-  return jsonObject;
+  return JSON.parse(response.getContentText());
 }
 
 function runListerizer() {
   // Get script properties
   const props = PropertiesService.getScriptProperties();
-  const GEMINI_API_KEY = props.getProperty('GEMINI_API_KEY');
-  const JSON_FOLDER_ID = props.getProperty('JSON_FOLDER_ID');
+  const LISTERIZER_API_URL = props.getProperty('LISTERIZER_API_URL');
+  const GEMINI_API_KEY     = props.getProperty('GEMINI_API_KEY');
+  const JSON_FOLDER_ID     = props.getProperty('JSON_FOLDER_ID');
 
   if (!GEMINI_API_KEY || !JSON_FOLDER_ID) {
     Logger.log("Missing GEMINI_API_KEY or JSON_FOLDER_ID script property. Please add them in project settings.");
@@ -78,7 +77,6 @@ function runListerizer() {
       temperature: 0.3
     }
   };
-
   const options = {
     method: 'post',
     contentType: 'application/json',
@@ -118,6 +116,16 @@ function runListerizer() {
     subject: subject,
     htmlBody: html
   });
+
+  // Mark the article as read in Listerizer
+  nextArticle.hasBeenRead = true;
+  const response = UrlFetchApp.fetch(LISTERIZER_API_URL.concat("/items"), {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(nextArticle),
+      muteHttpExceptions: true
+    });
+  Logger.log("Response: " + JSON.stringify(response.getContentText()));
 
   Logger.log("Successfully processed and emailed TL;DR for: " + nextArticle.title);
 }
