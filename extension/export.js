@@ -1,16 +1,18 @@
+const API_ITEMS_URL = 'https://listerizer.brickfolio.dev/items';
+
 document.addEventListener('DOMContentLoaded', async () => {
   const jsonOutput = document.getElementById('jsonOutput');
   const downloadBtn = document.getElementById('downloadBtn');
   const downloadCsvBtn = document.getElementById('downloadCsvBtn');
   const syncBtn = document.getElementById('syncBtn');
   const statusMsg = document.getElementById('status');
-  
+
   let readingListData = [];
 
   try {
     // Expected readingList object from chrome.readingList.query
     const items = await chrome.readingList.query({});
-    
+
     readingListData = items.map(item => ({
       title: item.title,
       url: item.url,
@@ -43,14 +45,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       const blob = new Blob([JSON.stringify(readingListData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      
+
       const dateStr = new Date().toISOString().split('T')[0];
       a.href = url;
       a.download = `reading_list_${dateStr}.json`;
-      
+
       document.body.appendChild(a);
       a.click();
-      
+
       // Cleanup
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
@@ -58,7 +60,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Show success message
       statusMsg.textContent = 'Downloaded successfully!';
       statusMsg.classList.add('visible');
-      
+
       setTimeout(() => {
         statusMsg.classList.remove('visible');
       }, 3000);
@@ -134,13 +136,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       };
 
       try {
-        const response = await fetch('https://listerizer.brickfolio.dev/items', {
+        const response = await fetch(API_ITEMS_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
         const responseBody = await response.json().catch(() => null);
         results.push({ url: item.url, status: response.status, body: responseBody });
+
+        // GAS may have marked this item read in the API since the last sync;
+        // propagate that back to Chrome so the reading list stays in sync.
+        if (response.ok && responseBody?.hasBeenRead === true && !item.hasBeenRead) {
+          try {
+            await chrome.readingList.updateEntry({ url: item.url, hasBeenRead: true });
+          } catch (updateErr) {
+            // Item may have been removed from Chrome between query and updateEntry
+            console.error(`syncToService: updateEntry failed for ${item.url}:`, updateErr);
+          }
+        }
       } catch (err) {
         console.log(err);
         results.push({ url: item.url, status: 'error', error: err.message });
